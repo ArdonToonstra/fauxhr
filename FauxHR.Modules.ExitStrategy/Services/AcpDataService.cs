@@ -2,6 +2,7 @@ using FauxHR.Core.Interfaces;
 using FauxHR.Core.Services;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
+using System.Text.Json;
 using Task = System.Threading.Tasks.Task;
 
 namespace FauxHR.Modules.ExitStrategy.Services;
@@ -44,7 +45,7 @@ public class AcpDataService
         {
             new() 
             { 
-                Title = "ACP related procedures and encounters", 
+                Title = "ACP Procedures and Encounters", 
                 ResourceType = "Procedure", 
                 QueryString = $"patient=Patient/{patientId}&code=http://snomed.info/sct|713603004&_include=Procedure:encounter" 
             },
@@ -80,13 +81,13 @@ public class AcpDataService
             },
             new() 
             { 
-                Title = "Events", 
+                Title = "Communications", 
                 ResourceType = "Communication", 
                 QueryString = $"patient=Patient/{patientId}&reason-code=http://snomed.info/sct|713603004" 
             },
             new() 
             { 
-                Title = "QuestionnaireResponse", 
+                Title = "ACP Forms", 
                 ResourceType = "QuestionnaireResponse", 
                 QueryString = $"subject=Patient/{patientId}&questionnaire=https://api.iknl.nl/docs/pzp/r4/Questionnaire/ACP-zib2020" 
             }
@@ -183,6 +184,178 @@ public class AcpDataService
         {
             query.ErrorMessage = ex.Message;
             query.Status = QueryStatus.Error;
+        }
+    }
+
+    public async Task<AcpQuery> ResolveReferencesAsync(List<AcpQuery> completedQueries)
+    {
+        var resolveQuery = new AcpQuery
+        {
+            Title = "Fetching referenced resources",
+            ResourceType = "RelatedPerson, PractitionerRole, Practitioner, ect.",
+            QueryString = "",
+            Status = QueryStatus.Running
+        };
+
+        try
+        {
+            // Get all currently stored keys to avoid re-fetching
+            var existingKeys = await _localStorage.KeysAsync();
+            var fetchedResources = new List<Hl7.Fhir.Model.Resource>();
+            var allEntries = new List<Bundle.EntryComponent>();
+            
+            // Collect initial references from completed queries
+            var referencedUrls = new HashSet<string>();
+            foreach (var query in completedQueries)
+            {
+                if (query.Result?.Entry == null) continue;
+                
+                foreach (var entry in query.Result.Entry)
+                {
+                    if (entry.Resource == null) continue;
+                    ExtractReferences(entry.Resource, referencedUrls);
+                }
+            }
+
+            // Iteratively resolve references (handles second-level and deeper)
+            var processedUrls = new HashSet<string>();
+            int iteration = 0;
+            int maxIterations = _appState.ReferenceResolutionDepth;
+            
+            while (referencedUrls.Any() && iteration < maxIterations)
+            {
+                iteration++;
+                var urlsToProcess = referencedUrls.Except(processedUrls).ToList();
+                
+                foreach (var refUrl in urlsToProcess)
+                {
+                    processedUrls.Add(refUrl);
+                    
+                    try
+                    {
+                        // Parse reference to get resource type and ID
+                        var parts = refUrl.Split('/');
+                        if (parts.Length < 2) continue;
+                        
+                        var resourceType = parts[^2];
+                        var resourceId = parts[^1];
+                        
+                        // Check if we already have this resource
+                        var keyPattern = $"{resourceType}-{resourceId}";
+                        if (existingKeys.Any(k => k.StartsWith(keyPattern)))
+                        {
+                            continue; // Already have it
+                        }
+                        
+                        // Fetch the resource
+                        var resource = await _fhirService.GetAsync($"{resourceType}/{resourceId}");
+                        if (resource != null)
+                        {
+                            // Update Meta.Source
+                            if (resource.Meta == null) resource.Meta = new Meta();
+                            resource.Meta.Source = _appState.CurrentServerUrl;
+
+                            // Save to LocalStorage
+                            var key = $"{resource.TypeName}-{resource.Id}-{DateTime.Now:yyyyMMdd}";
+                            var serializer = new FhirJsonSerializer();
+                            var rawJson = serializer.SerializeToString(resource);
+                            
+                            // Pretty-print
+                            try
+                            {
+                                var jsonDocument = JsonDocument.Parse(rawJson);
+                                var options = new JsonSerializerOptions { WriteIndented = true };
+                                var json = JsonSerializer.Serialize(jsonDocument, options);
+                                await _localStorage.SetItemAsStringAsync(key, json);
+                            }
+                            catch
+                            {
+                                await _localStorage.SetItemAsStringAsync(key, rawJson);
+                            }
+                            
+                            allEntries.Add(new Bundle.EntryComponent { Resource = resource });
+                            fetchedResources.Add(resource);
+                            
+                            // Extract references from this newly fetched resource (second-level)
+                            ExtractReferences(resource, referencedUrls);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error fetching reference {refUrl}: {ex.Message}");
+                    }
+                }
+            }
+
+            resolveQuery.Result = new Bundle
+            {
+                Total = fetchedResources.Count,
+                Entry = allEntries
+            };
+            resolveQuery.Status = QueryStatus.Success;
+        }
+        catch (Exception ex)
+        {
+            resolveQuery.ErrorMessage = ex.Message;
+            resolveQuery.Status = QueryStatus.Error;
+        }
+
+        return resolveQuery;
+    }
+
+    private void ExtractReferences(Hl7.Fhir.Model.Resource resource, HashSet<string> references)
+    {
+        // Extract common reference patterns from FHIR resources
+        if (resource is Procedure procedure)
+        {
+            AddReference(procedure.Encounter?.Reference, references);
+            foreach (var performer in procedure.Performer ?? new List<Procedure.PerformerComponent>())
+            {
+                AddReference(performer.Actor?.Reference, references);
+            }
+        }
+        else if (resource is Encounter encounter)
+        {
+            foreach (var participant in encounter.Participant ?? new List<Encounter.ParticipantComponent>())
+            {
+                AddReference(participant.Individual?.Reference, references);
+            }
+            AddReference(encounter.Subject?.Reference, references);
+        }
+        else if (resource is Consent consent)
+        {
+            foreach (var provision in consent.Provision?.Provision ?? new List<Consent.provisionComponent>())
+            {
+                foreach (var actor in provision.Actor ?? new List<Consent.provisionActorComponent>())
+                {
+                    AddReference(actor.Reference?.Reference, references);
+                }
+            }
+        }
+        else if (resource is Observation observation)
+        {
+            foreach (var performer in observation.Performer ?? new List<ResourceReference>())
+            {
+                AddReference(performer.Reference, references);
+            }
+        }
+        else if (resource is PractitionerRole practitionerRole)
+        {
+            // Second-level references from PractitionerRole
+            AddReference(practitionerRole.Practitioner?.Reference, references);
+            AddReference(practitionerRole.Organization?.Reference, references);
+        }
+        // Can add more resource types as needed
+    }
+
+    private void AddReference(string? reference, HashSet<string> references)
+    {
+        if (string.IsNullOrEmpty(reference)) return;
+        
+        // Only add relative references (not absolute URLs to external servers)
+        if (!reference.StartsWith("http://") && !reference.StartsWith("https://"))
+        {
+            references.Add(reference);
         }
     }
 }

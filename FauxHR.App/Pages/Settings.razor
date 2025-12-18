@@ -55,6 +55,41 @@
                 </div>
             </div>
         </div>
+        
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Reference Resolution</h5>
+                    <p class="card-text">Configure automatic fetching of referenced resources during ACP data pull.</p>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableReferences" 
+                                   @bind="enableReferences" />
+                            <label class="form-check-label" for="enableReferences">
+                                Enable automatic reference resolution
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Resolution Depth: @resolutionDepth level(s)</label>
+                        <input type="range" class="form-range" min="1" max="5" 
+                               @bind="resolutionDepth" @bind:event="oninput" 
+                               disabled="@(!enableReferences)" />
+                        <div class="form-text">
+                            Level 1: Direct references only. Level 3 (recommended): Full resolution including Practitioners and Organizations.
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" @onclick="SaveReferenceSettings">Save Settings</button>
+                    @if (referenceSaved)
+                    {
+                        <span class="text-success ms-2 fade-in">Saved!</span>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -62,12 +97,18 @@
     private string serverUrl = "";
     private bool isLoading = false;
     private bool serverSaved = false;
+    private bool referenceSaved = false;
     private string loadMessage = "";
     private string messageClass = "";
+    
+    private bool enableReferences = true;
+    private int resolutionDepth = 3;
 
     protected override void OnInitialized()
     {
         serverUrl = AppState.CurrentServerUrl;
+        enableReferences = AppState.EnableReferenceResolution;
+        resolutionDepth = AppState.ReferenceResolutionDepth;
     }
 
     private void SaveServerSettings()
@@ -76,6 +117,13 @@
         serverSaved = true;
         // Hide success message after 2s
         _ = Task.Delay(2000).ContinueWith(_ => { serverSaved = false; InvokeAsync(StateHasChanged); });
+    }
+    
+    private void SaveReferenceSettings()
+    {
+        AppState.SetReferenceResolutionSettings(enableReferences, resolutionDepth);
+        referenceSaved = true;
+        _ = Task.Delay(2000).ContinueWith(_ => { referenceSaved = false; InvokeAsync(StateHasChanged); });
     }
 
     private void ResetServerUrl()

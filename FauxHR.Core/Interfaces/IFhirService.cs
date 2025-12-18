@@ -4,8 +4,9 @@ namespace FauxHR.Core.Interfaces;
 
 public interface IFhirService
 {
-    Task<Patient?> GetPatientAsync(string id);
-    Task<Bundle> SearchPatientsAsync(string? name = null);
+    Task<Patient?> GetPatientByIdAsync(string id);
     Task<Patient?> SearchPatientByIdentifierAsync(string system, string value);
+    Task<Bundle> SearchPatientsAsync(string name);
     Task<Bundle> SearchResourceAsync(string resourceType, string queryString);
+    Task<Hl7.Fhir.Model.Resource?> GetAsync(string path);
 }

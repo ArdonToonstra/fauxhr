@@ -217,7 +217,7 @@
 
         try
         {
-            var p = await FhirService.GetPatientAsync(searchId);
+            var p = await FhirService.GetPatientByIdAsync(searchId);
             if (p != null)
             {
                 // Direct lookup auto-selects as it's specific

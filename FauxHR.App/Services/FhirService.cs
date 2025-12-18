@@ -40,7 +40,7 @@ public class FhirService : IFhirService
             handler);
     }
 
-    public async Task<Patient?> GetPatientAsync(string id)
+    public async Task<Patient?> GetPatientByIdAsync(string id)
     {
         try 
         {
@@ -102,6 +102,18 @@ public class FhirService : IFhirService
         catch (FhirOperationException)
         {
             return new Bundle();
+        }
+    }
+
+    public async Task<Hl7.Fhir.Model.Resource?> GetAsync(string path)
+    {
+        try
+        {
+            return await _client.GetAsync(path);
+        }
+        catch (FhirOperationException)
+        {
+            return null;
         }
     }
 }

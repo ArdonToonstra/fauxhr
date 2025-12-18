@@ -8,6 +8,10 @@ public class AppState
     public string CurrentServerUrl { get; private set; } = "https://server.fire.ly"; 
     
     public Patient? CurrentPatient { get; private set; }
+    
+    // Reference Resolution Settings
+    public bool EnableReferenceResolution { get; private set; } = true;
+    public int ReferenceResolutionDepth { get; private set; } = 3;
 
     public event Action? OnChange;
 
@@ -27,6 +31,13 @@ public class AppState
             CurrentPatient = patient;
             NotifyStateChanged();
         }
+    }
+    
+    public void SetReferenceResolutionSettings(bool enabled, int depth)
+    {
+        EnableReferenceResolution = enabled;
+        ReferenceResolutionDepth = Math.Max(1, Math.Min(5, depth)); // Clamp between 1-5
+        NotifyStateChanged();
     }
 
     private void NotifyStateChanged() => OnChange?.Invoke();

@@ -35,6 +35,9 @@
                 <button class="btn btn-outline-primary btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/resources")'>
                     <i class="bi bi-database me-2"></i>View All Resources
                 </button>
+                <button class="btn btn-success btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/integrated")'>
+                    <i class="bi bi-file-earmark-text me-2"></i>Integrated View
+                </button>
             }
         </div>
     </div>
@@ -280,12 +283,20 @@
         queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
         StateHasChanged();
 
-        // Run sequential or parallel? Sequential better for "menu" visual feel.
+        // Run sequential queries
         foreach(var q in queries)
         {
             await AcpService.ExecuteQueryAsync(q);
-            StateHasChanged(); // Update UI after each step
-            await Task.Delay(200); // Artificial delay for visual effect? Optional.
+            StateHasChanged();
+            await Task.Delay(200);
+        }
+        
+        // After all queries complete, resolve references (if enabled)
+        if (AppState.EnableReferenceResolution)
+        {
+            var resolveQuery = await AcpService.ResolveReferencesAsync(queries);
+            queries.Add(resolveQuery);
+            StateHasChanged();
         }
         
         isLoading = false;
