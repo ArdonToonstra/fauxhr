@@ -65,7 +65,7 @@
                                     <i class="bi bi-search"></i>
                                 </button>
                             </div>
-                            <div class="form-text">Search by family or given name.</div>
+                            <div class="form-text">Search by family or given name (contains).</div>
                         </div>
                     </div>
 
@@ -87,20 +87,32 @@
                         </div>
                     }
                     
-                    <!-- Search Results (Name Search) -->
+                    <!-- Search Results (Tiles) -->
                     @if (foundPatients != null && foundPatients.Any())
                     {
-                         <div class="list-group mt-3">
+                         <div class="row g-3 mt-3">
                             @foreach(var p in foundPatients)
                             {
-                                <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" @onclick="() => SelectPatient(p)">
-                                    <div>
-                                        <span class="fw-bold">@GetPatientName(p)</span>
-                                        <span class="text-muted small ms-2">(@p.Id)</span>
-                                        <div class="small text-muted">@p.BirthDate</div>
+                                <div class="col-sm-6 col-lg-4">
+                                    <div class="card h-100 shadow-sm patient-card cursor-pointer" @onclick="() => SelectPatient(p)">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center gap-3 mb-3">
+                                                 <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
+                                                    <i class="bi bi-person-fill fs-4"></i>
+                                                </div>
+                                                <div>
+                                                     <h6 class="card-title fw-bold mb-0">@GetPatientName(p)</h6>
+                                                     <span class="badge bg-light text-secondary border">@p.Id</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between text-muted small">
+                                                <span><i class="bi bi-calendar-event me-1"></i> @(p.BirthDate ?? "Unknown Birthdate")</span>
+                                                <span class="text-capitalize"><i class="bi bi-gender-ambiguous me-1"></i> @(p.Gender?.ToString() ?? "Unknown Gender")</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
+                                </div>
                             }
                         </div>
                     }
@@ -171,6 +183,7 @@
         {
             feedbackMessage = "Please select a patient first.";
             feedbackClass = "alert-warning";
+            // Scroll top top if possible, or just set message
             return;
         }
         NavManager.NavigateTo(module.EntryPath);
@@ -207,6 +220,7 @@
             var p = await FhirService.GetPatientAsync(searchId);
             if (p != null)
             {
+                // Direct lookup auto-selects as it's specific
                 SelectPatient(p);
             }
             else
@@ -237,6 +251,7 @@
             var p = await FhirService.SearchPatientByIdentifierAsync(systemToUse, searchIdentifier);
             if (p != null)
             {
+                // Auto-select unique identifier match
                 SelectPatient(p);
             }
             else
@@ -267,16 +282,10 @@
             
             if (results.Any())
             {
-                if (results.Count == 1)
-                {
-                    SelectPatient(results.First());
-                }
-                else
-                {
-                    foundPatients = results;
-                    feedbackMessage = "Multiple patients found. Please select one.";
-                    feedbackClass = "alert-info";
-                }
+                // USER REQUEST: Always show tiles, do not auto select even if 1 result.
+                foundPatients = results;
+                feedbackMessage = "Select a patient from the results below.";
+                feedbackClass = "alert-info";
             }
             else
             {
@@ -297,7 +306,7 @@
         AppState.SetPatient(p);
         feedbackMessage = $"Context set to: {GetPatientName(p)}";
         feedbackClass = "alert-success";
-        foundPatients = null; // Clear list
+        foundPatients = null; // Clear list after selection
     }
 
     private string GetPatientName(Patient p)

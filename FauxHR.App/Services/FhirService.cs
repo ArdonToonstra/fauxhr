@@ -57,7 +57,7 @@ public class FhirService : IFhirService
         var q = new SearchParams();
         if(!string.IsNullOrEmpty(name))
         {
-            q.Add("name", name);
+            q.Add("name:contains", name);
         }
         
         // Return empty bundle if search fails or returns null to be safe, though SearchAsync usually returns a Bundle
