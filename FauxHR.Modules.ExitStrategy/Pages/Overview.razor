@@ -1,25 +1,203 @@
 @page "/acp/overview"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.ExitStrategy.Services
+@using Hl7.Fhir.Model
+@using Hl7.Fhir.Serialization
+@using Task = System.Threading.Tasks.Task
+@inject AppState AppState
+@inject AcpDataService AcpService
 
 <PageTitle>Exit Strategy - Overview</PageTitle>
 
 <div class="container-fluid py-4">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="display-6 fw-bold text-primary mb-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+             <h2 class="display-6 fw-bold text-primary mb-1">
                 <i class="bi bi-clipboard-pulse me-3"></i>Exit Strategy (ACP)
             </h2>
-            <p class="lead text-muted">
-                Advance Care Planning implementation guide.
-            </p>
+            <p class="lead text-muted mb-0">Advance Care Planning implementation guide.</p>
+        </div>
+        <div>
+            @if(AppState.CurrentPatient != null)
+            {
+                 <button class="btn btn-primary btn-lg" @onclick="PullLatestInfo" disabled="@isLoading">
+                    @if(isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-cloud-arrow-down me-2"></i>
+                    }
+                    Pull Latest Info
+                </button>
+            }
         </div>
     </div>
     
-    <div class="alert alert-info shadow-sm border-0 mt-3">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        This module is currently under construction.
-    </div>
+    @if(AppState.CurrentPatient == null)
+    {
+        <div class="alert alert-warning shadow-sm border-0">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Please select a patient from the Dashboard to view ACP data.
+        </div>
+    }
+    else
+    {
+        <!-- Progress Section -->
+        @if(queries != null && queries.Any())
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                 <div class="card-header bg-white border-bottom-0 pt-3">
+                    <h5 class="fw-normal mb-0">Data Retrieval Progress</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        @foreach(var q in queries)
+                        {
+                            <div class="col-md-6 col-lg-3">
+                                <div class="d-flex align-items-center p-2 border rounded @GetStatusClass(q)">
+                                    <div class="me-3">@GetStatusIcon(q)</div>
+                                    <div class="text-truncate">
+                                        <div class="fw-bold small">@q.Title</div>
+                                        <div class="text-xs text-muted">@q.ResourceType</div>
+                                    </div>
+                                    @if(q.Result != null && q.Result.Total > 0 || (q.Result?.Entry?.Count > 0))
+                                    {
+                                        <span class="badge bg-success ms-auto">@(q.Result.Total ?? q.Result.Entry.Count)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tiles Grid -->
+             <div class="row g-4">
+                @foreach (var q in queries.Where(x => x.Status == QueryStatus.Success && (x.Result?.Entry?.Any() == true)))
+                {
+                    <div class="col-12">
+                        <h4 class="fw-light mb-3">@q.Title</h4>
+                         <div class="row g-3">
+                            @foreach(var entry in q.Result!.Entry)
+                            {
+                                <div class="col-md-6 col-lg-4">
+                                     <div class="card h-100 shadow-sm border-0 bg-light">
+                                        <div class="card-body">
+                                            <span class="badge bg-secondary mb-2">@entry.Resource.TypeName</span>
+                                            <h6 class="card-title">@entry.Resource.Id</h6>
+                                            <div class="small text-muted text-truncate">
+                                                <!-- Simple dump for now, specialized rendering later -->
+                                                Resource: @entry.Resource.TypeName
+                                            </div>
+                                            <div class="mt-3">
+                                                 <button class="btn btn-outline-secondary btn-sm" @onclick="() => ViewSource(entry.Resource)">
+                                                    <i class="bi bi-code-slash me-1"></i> View Source
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <hr class="my-4 text-muted opacity-25" />
+                    </div>
+                }
+            </div>
+        }
+    }
 </div>
 
+<!-- Simple Source Viewer Modal -->
+@if (showSourceModal && selectedResourceJson != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Resource Source</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSourceModal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <pre class="small"><code>@selectedResourceJson</code></pre>
+                </div>
+                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseSourceModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    private List<AcpQuery>? queries;
+    private bool isLoading = false;
     
+    // Modal State
+    private bool showSourceModal = false;
+    private string? selectedResourceJson;
+
+    private void ViewSource(Hl7.Fhir.Model.Resource resource)
+    {
+        var serializer = new FhirJsonSerializer();
+        selectedResourceJson = serializer.SerializeToString(resource);
+        showSourceModal = true;
+    }
+
+    private void CloseSourceModal()
+    {
+        showSourceModal = false;
+        selectedResourceJson = null;
+    }
+    
+    // ... existing helpers ...
+
+    private string GetStatusClass(AcpQuery q) => q.Status switch
+    {
+        QueryStatus.Running => "bg-light border-primary",
+        QueryStatus.Success => "bg-success-subtle border-success",
+        QueryStatus.Error => "bg-danger-subtle border-danger",
+        _ => "bg-white"
+    };
+
+    private RenderFragment GetStatusIcon(AcpQuery q) => builder =>
+    {
+        if (q.Status == QueryStatus.Running)
+        {
+            builder.AddMarkupContent(0, "<div class='spinner-border text-primary spinner-border-sm'></div>");
+        }
+        else if (q.Status == QueryStatus.Success)
+        {
+             builder.AddMarkupContent(0, "<i class='bi bi-check-circle-fill text-success'></i>");
+        }
+        else if (q.Status == QueryStatus.Error)
+        {
+             builder.AddMarkupContent(0, "<i class='bi bi-x-circle-fill text-danger'></i>");
+        }
+        else
+        {
+             builder.AddMarkupContent(0, "<i class='bi bi-circle text-muted'></i>");
+        }
+    };
+
+    private async Task PullLatestInfo()
+    {
+        if (AppState.CurrentPatient == null) return;
+        
+        isLoading = true;
+        queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
+        StateHasChanged();
+
+        // Run sequential or parallel? Sequential better for "menu" visual feel.
+        foreach(var q in queries)
+        {
+            await AcpService.ExecuteQueryAsync(q);
+            StateHasChanged(); // Update UI after each step
+            await Task.Delay(200); // Artificial delay for visual effect? Optional.
+        }
+        
+        isLoading = false;
+    }
 }

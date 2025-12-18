@@ -73,4 +73,27 @@ public class FhirService : IFhirService
         
         return bundle?.Entry.Select(e => e.Resource as Patient).FirstOrDefault(p => p != null);
     }
+
+    public async Task<Bundle> SearchResourceAsync(string resourceType, string queryString)
+    {
+        // Construct the full query path
+        // Note: queryString should handle the parameters. 
+        // Example: resourceType="Procedure", queryString="patient=123&code=..."
+        
+        try 
+        {
+            // We use the raw ReadAsync or generic search but FhirClient's SearchAsync expects SearchParams.
+            // Parsing the raw query string into SearchParams is one way, but directly passing the URL is easier for flexible queries.
+            // However, FhirClient doesn't easily support raw URL strings for Search returning a Bundle object typed as such without parsing.
+            // Let's use the low-level GetAsync which returns a Resource, and cast to Bundle.
+            
+            var resource = await _client.GetAsync($"{resourceType}?{queryString}");
+            return resource as Bundle ?? new Bundle();
+        }
+        catch (FhirOperationException)
+        {
+            // Log or handle? For now return empty bundle.
+            return new Bundle();
+        }
+    }
 }
