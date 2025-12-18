@@ -1,0 +1,206 @@
+/* Modern Styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+html,
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f7f9fc;
+    /* Very light blue-grey background */
+    color: #2c3e50;
+    font-size: 0.95rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.navbar-brand {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+a {
+    text-decoration: none;
+}
+
+/* Sidebar */
+.sidebar {
+    background-color: #ffffff;
+    box-shadow: 1px 0 10px rgba(0, 0, 0, 0.05);
+    height: 100vh;
+}
+
+.sidebar .nav-link {
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+    color: #5f6e82 !important;
+    /* Muted slate */
+}
+
+.sidebar .nav-link:hover {
+    background-color: #f1f4f8;
+    color: #0d6efd !important;
+}
+
+.sidebar .nav-link.active {
+    background-color: #eef2ff;
+    color: #0d6efd !important;
+    font-weight: 500;
+}
+
+/* Sidebar Header */
+.nav-header {
+    height: 4rem;
+    /* Match top-row height */
+    background-color: #ffffff;
+    /* Match sidebar background */
+    display: flex;
+    align-items: center;
+}
+
+.nav-header .navbar-brand {
+    margin: 0;
+    padding: 0;
+}
+
+
+/* Top Row (Header) */
+.top-row {
+    background-color: transparent;
+    /* Let body bg show through or use white */
+    border-bottom: none;
+    height: 4rem;
+}
+
+/* Module Cards */
+.module-card {
+    border: 1px solid #edf2f7;
+    border-radius: 12px;
+    background: white;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.module-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    border-color: #0d6efd;
+}
+
+.module-card .icon-wrapper {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: #eff6ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0d6efd;
+}
+
+.module-card:hover .icon-wrapper {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.module-card.disabled {
+    cursor: default;
+    background-color: #f8f9fa;
+}
+
+.module-card.disabled:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: #edf2f7;
+}
+
+.border-dashed {
+    border-style: dashed !important;
+}
+
+/* Patient Picker Styles */
+.patient-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+    border: 1px solid #edf2f7;
+}
+
+.patient-picker strong {
+    color: #333;
+}
+
+/* Settings Dialog Styles */
+.settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.settings-dialog {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    width: 450px;
+    max-width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Button & Controls Overrides */
+.btn {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Main Layout Fixes */
+.page {
+    flex-direction: row;
+}
+
+main {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #f7f9fc;
+}
+
+/* Patient Status Utilities */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.text-xs {
+    font-size: 0.75rem;
+}
+
+.bg-primary-subtle {
+    background-color: #cfe2ff;
+}
+
+.bg-secondary-subtle {
+    background-color: #e2e3e5;
+}
+
+.border-end-md {
+    border-right: 1px solid #dee2e6;
+}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FauxHR.App</title>
+    <base href="/fauxhr/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="FauxHR.App.styles.css" rel="stylesheet" />
+
+    <!-- LHCForms Assets -->
+    <link rel="stylesheet" href="_content/FauxHR.Modules.ExitStrategy/lhc-forms.css" />
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <!-- LHCForms Scripts - Load BEFORE Blazor -->
+    <script src="_content/FauxHR.Modules.ExitStrategy/zone.min.js"></script>
+    <script src="_content/FauxHR.Modules.ExitStrategy/lhc-forms.js"></script>
+    <script src="_content/FauxHR.Modules.ExitStrategy/lformsFHIR.min.js"></script>
+    <script src="js/lforms-helper.js"></script>
+
+    <!-- Blazor -->
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+
+</html>
