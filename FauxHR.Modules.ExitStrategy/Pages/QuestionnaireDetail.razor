@@ -1,0 +1,162 @@
+@page "/acp/QuestionnaireResponse/{Id}"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.ExitStrategy.Services
+@using Hl7.Fhir.Model
+@using Hl7.Fhir.Serialization
+@using Task = System.Threading.Tasks.Task
+@using System.IO
+@using Blazored.LocalStorage
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>ACP - Questionnaire Response</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-primary mb-1">
+                <i class="bi bi-clipboard-data me-3"></i>Questionnaire Response
+            </h2>
+            <p class="lead text-muted mb-0">Detail view</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("/acp/integrated")'>
+            <i class="bi bi-arrow-left me-2"></i>Back to List
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3">Loading Questionnaire Response...</p>
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>@errorMessage
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                 <div id="lforms-container" style="min-height: 400px;"></div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private bool isLoading = true;
+    private string? errorMessage;
+    private QuestionnaireResponse? currentQR;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            string? json = null;
+            var parser = new FhirJsonParser();
+
+            // Strategy 1: Direct key lookup assuming Key == "QuestionnaireResponse-{Id}"
+            var key = $"QuestionnaireResponse-{Id}";
+            if (await LocalStorage.ContainKeyAsync(key))
+            {
+                json = await LocalStorage.GetItemAsStringAsync(key);
+            }
+
+            // Strategy 2: Search for key ending with ID (if key prefix differs slightly)
+            if (string.IsNullOrEmpty(json))
+            {
+                var keys = await LocalStorage.KeysAsync();
+                var matchingKey = keys.FirstOrDefault(k => k.EndsWith($"-{Id}") && k.Contains("QuestionnaireResponse"));
+                if (matchingKey != null)
+                {
+                    json = await LocalStorage.GetItemAsStringAsync(matchingKey);
+                }
+            }
+
+            // Strategy 3: Iterate all QR keys and check the Resource ID inside content
+            // This handles cases where Key and ID are completely different (e.g. Key=GUID, ID=BusinessID)
+            if (string.IsNullOrEmpty(json))
+            {
+                var keys = await LocalStorage.KeysAsync();
+                var qrKeys = keys.Where(k => k.StartsWith("QuestionnaireResponse-")).ToList();
+                
+                foreach(var k in qrKeys)
+                {
+                    try 
+                    {
+                        var potentialJson = await LocalStorage.GetItemAsStringAsync(k);
+                        if (!string.IsNullOrEmpty(potentialJson))
+                        {
+                            var qr = parser.Parse<QuestionnaireResponse>(potentialJson);
+                            if (qr.Id == Id)
+                            {
+                                json = potentialJson;
+                                break;
+                            }
+                        }
+                    }
+                    catch { /* continue */ }
+                }
+            }
+
+            if (string.IsNullOrEmpty(json))
+            {
+                errorMessage = $"QuestionnaireResponse with ID '{Id}' not found.";
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            currentQR = parser.Parse<QuestionnaireResponse>(json);
+
+            // 2. Load embedded Questionnaire
+            string questionnaireJson = "";
+            var assembly = typeof(FauxHR.Modules.ExitStrategy.ExitStrategyModule).Assembly;
+            var resourceName = "FauxHR.Modules.ExitStrategy.Questionnaire-ACP-zib2020.json";
+            
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                questionnaireJson = await reader.ReadToEndAsync();
+            }
+
+            // Wait for UI to update so container exists
+            isLoading = false;
+            StateHasChanged();
+            await Task.Delay(100); 
+
+            await JS.InvokeVoidAsync("lformsHelper.renderQuestionnaireResponse", "lforms-container", questionnaireJson, json);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading data: {ex.Message}";
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+    
+    public void Dispose()
+    {
+         // Cleanup
+         _ = JS.InvokeVoidAsync("lformsHelper.clearContainer", "lforms-container");
+    }
+}

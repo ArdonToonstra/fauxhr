@@ -4,10 +4,12 @@
 @using Hl7.Fhir.Model
 @using Hl7.Fhir.Serialization
 @using Task = System.Threading.Tasks.Task
+@using System.IO
 @using Blazored.LocalStorage
 @inject AppState AppState
 @inject ILocalStorageService LocalStorage
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>ACP - Integrated View</PageTitle>
 
@@ -97,19 +99,54 @@
 
                 <hr class="my-4" />
 
-                <!-- Content sections will go here -->
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-2"></i>
-                    Additional form sections will be implemented in the next steps.
-                </div>
+                <!-- QuestionnaireResponses Section -->
+                @if (questionnaireResponses.Any())
+                {
+                    <div class="mb-4">
+                        <h5 class="mb-3">
+                            <i class="bi bi-clipboard-data me-2"></i>Questionnaire Responses
+                        </h5>
+                        <div class="list-group">
+                            @foreach (var qr in questionnaireResponses.OrderByDescending(q => GetQuestionnaireResponseDate(q)))
+                            {
+                                <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                                        @onclick="() => ShowQuestionnaireResponse(qr)">
+                                    <div>
+                                        <div class="fw-bold">@(qr.Questionnaire ?? qr.Id ?? "Unnamed Questionnaire")</div>
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar3 me-1"></i>@GetQuestionnaireResponseDate(qr)
+                                            @if (!string.IsNullOrEmpty(qr.Author?.Display))
+                                            {
+                                                <span class="ms-3">
+                                                    <i class="bi bi-person me-1"></i>@qr.Author.Display
+                                                </span>
+                                            }
+                                        </small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No questionnaire responses found.
+                    </div>
+                }
             </div>
         </div>
     }
+    
+
 </div>
 
 @code {
     private bool isLoading = true;
     private AcpFormData? acpData;
+    private List<QuestionnaireResponse> questionnaireResponses = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -169,6 +206,26 @@
                     acpData.Encounter = parser.Parse<Encounter>(json);
                 }
             }
+            
+            // Load QuestionnaireResponses
+            var qrKeys = keys.Where(k => k.StartsWith("QuestionnaireResponse-")).ToList();
+            foreach (var key in qrKeys)
+            {
+                try
+                {
+                    var json = await LocalStorage.GetItemAsStringAsync(key);
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var parser = new FhirJsonParser();
+                        var qr = parser.Parse<QuestionnaireResponse>(json);
+                        questionnaireResponses.Add(qr);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error parsing QuestionnaireResponse {key}: {ex.Message}");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -176,6 +233,23 @@
         }
 
         isLoading = false;
+    }
+
+    private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
+    {
+        Navigation.NavigateTo($"/acp/QuestionnaireResponse/{qr.Id}");
+    }
+    
+    private string GetQuestionnaireResponseDate(QuestionnaireResponse qr)
+    {
+        if (!string.IsNullOrEmpty(qr.Authored))
+        {
+            if (DateTime.TryParse(qr.Authored, out var date))
+            {
+                return date.ToString("dd-MM-yyyy HH:mm");
+            }
+        }
+        return "Unknown date";
     }
 
     private string GetPatientName()
