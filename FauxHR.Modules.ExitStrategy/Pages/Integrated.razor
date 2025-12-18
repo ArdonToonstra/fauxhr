@@ -70,13 +70,28 @@
                                 <div>@GetEncounterDate()</div>
                             </div>
                         </div>
-                        @if (!string.IsNullOrEmpty(GetParticipants()))
-                        {
-                            <div class="mb-3">
-                                <label class="text-muted small">Gesprek gevoerd door</label>
-                                <div>@GetParticipants()</div>
-                            </div>
-                        }
+                        
+                        <div class="mb-3">
+                            <label class="text-muted small d-block mb-1">Gesprek gevoerd door</label>
+                            @{
+                                var participants = GetParticipants();
+                                if (participants.Any())
+                                {
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach (var p in participants)
+                                        {
+                                            <button class="btn btn-outline-primary btn-sm rounded-pill" @onclick="() => ShowParticipantDetails(p)">
+                                                <i class="bi bi-person me-1"></i>@p.Display
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            }
+                        </div>
                     </div>
                     
                     <!-- Legally Capable Indicator -->
@@ -104,7 +119,7 @@
                 {
                     <div class="mb-4">
                         <h5 class="mb-3">
-                            <i class="bi bi-clipboard-data me-2"></i>Questionnaire Responses
+                            <i class="bi bi-clipboard-data me-2"></i>ACP Formulieren
                         </h5>
                         <div class="list-group">
                             @foreach (var qr in questionnaireResponses.OrderByDescending(q => GetQuestionnaireResponseDate(q)))
@@ -112,7 +127,7 @@
                                 <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
                                         @onclick="() => ShowQuestionnaireResponse(qr)">
                                     <div>
-                                        <div class="fw-bold">@(qr.Questionnaire ?? qr.Id ?? "Unnamed Questionnaire")</div>
+                                        <div class="fw-bold">@(qr.Authored ?? qr.Id ?? "Unnamed Questionnaire")</div>
                                         <small class="text-muted">
                                             <i class="bi bi-calendar3 me-1"></i>@GetQuestionnaireResponseDate(qr)
                                             @if (!string.IsNullOrEmpty(qr.Author?.Display))
@@ -139,20 +154,99 @@
             </div>
         </div>
     }
-    
-
 </div>
+
+<!-- Participant Details Modal -->
+@if (selectedParticipant != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@selectedParticipant.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseParticipantModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isResolvingParticipant)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-primary mb-2"></div>
+                            <p>Loading details...</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <dl class="row">
+                            @if (!string.IsNullOrEmpty(selectedParticipant.Role))
+                            {
+                                <dt class="col-sm-4 text-muted">Role</dt>
+                                <dd class="col-sm-8 mb-3">@selectedParticipant.Role</dd>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(selectedParticipant.Specialty))
+                            {
+                                <dt class="col-sm-4 text-muted">Specialty</dt>
+                                <dd class="col-sm-8 mb-3">@selectedParticipant.Specialty</dd>
+                            }
+                            
+                            @if (!string.IsNullOrEmpty(selectedParticipant.Organization))
+                            {
+                                <dt class="col-sm-4 text-muted">Organization</dt>
+                                <dd class="col-sm-8 mb-3">@selectedParticipant.Organization</dd>
+                            }
+
+                            @if (!string.IsNullOrEmpty(selectedParticipant.Relationship))
+                            {
+                                <dt class="col-sm-4 text-muted">Relationship</dt>
+                                <dd class="col-sm-8 mb-3">@selectedParticipant.Relationship</dd>
+                            }
+                            
+                            @if (selectedParticipant.Telecoms.Any())
+                            {
+                                <dt class="col-sm-4 text-muted">Contact</dt>
+                                <dd class="col-sm-8 mb-3">
+                                    @foreach(var t in selectedParticipant.Telecoms)
+                                    {
+                                        <div class="mb-1">
+                                            <i class="bi bi-@(t.System == ContactPoint.ContactPointSystem.Email ? "envelope" : "telephone") me-2"></i>
+                                            @t.Value (@t.Use)
+                                        </div>
+                                    }
+                                </dd>
+                            }
+                            
+                            <dt class="col-sm-4 text-muted">Source</dt>
+                            <dd class="col-sm-8">
+                                <small class="text-monospace">@selectedParticipant.ResourceType</small>
+                            </dd>
+                        </dl>
+                    }
+                </div>
+                <!-- Debug Info -->
+                <div class="modal-footer justify-content-start bg-light">
+                     <small class="text-muted w-100">
+                         <strong>Reference:</strong> @selectedParticipant.Reference
+                     </small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private bool isLoading = true;
     private AcpFormData? acpData;
     private List<QuestionnaireResponse> questionnaireResponses = new();
+    
+    // Participant Modal State
+    private ParticipantDetail? selectedParticipant;
+    private bool isResolvingParticipant = false;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAcpData();
     }
-
+    
     private async Task LoadAcpData()
     {
         isLoading = true;
@@ -233,13 +327,177 @@
         }
 
         isLoading = false;
+        StateHasChanged();
     }
 
     private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
     {
         Navigation.NavigateTo($"/acp/QuestionnaireResponse/{qr.Id}");
     }
-    
+
+    // --- Participant Logic ---
+
+    private List<ParticipantInfo> GetParticipants()
+    {
+        var list = new List<ParticipantInfo>();
+
+        // Priority 1: Encounter participants
+        if (acpData?.Encounter?.Participant?.Any() == true)
+        {
+            list.AddRange(acpData.Encounter.Participant
+                .Where(p => p.Individual != null)
+                .Select(p => new ParticipantInfo(p.Individual.Display ?? "Onbekend", p.Individual.Reference)));
+        }
+        
+        // Priority 2: Procedure performers (only if list is empty to avoid dupes if both exist)
+        if (!list.Any() && acpData?.Procedure?.Performer?.Any() == true)
+        {
+            list.AddRange(acpData.Procedure.Performer
+                 .Where(p => p.Actor != null)
+                 .Select(p => new ParticipantInfo(p.Actor.Display ?? "Onbekend", p.Actor.Reference)));
+        }
+
+        return list.DistinctBy(p => p.Reference).ToList(); // De-dupe by reference
+    }
+
+    private async Task ShowParticipantDetails(ParticipantInfo info)
+    {
+        selectedParticipant = new ParticipantDetail
+        {
+            Name = info.Display,
+            Reference = info.Reference
+        };
+        isResolvingParticipant = true;
+        StateHasChanged();
+
+        if (string.IsNullOrEmpty(info.Reference)) 
+        {
+            isResolvingParticipant = false;
+            return;
+        }
+
+        try
+        {
+            // Parse Reference: ResourceType/Id
+            var parts = info.Reference.Split('/');
+            if (parts.Length < 2) return;
+            
+            var resourceType = parts[parts.Length - 2];
+            var resourceId = parts[parts.Length - 1];
+
+            // 1. Fetch Primary Resource (PractitionerRole or RelatedPerson)
+            var resource = await FetchResource(resourceType, resourceId);
+
+            if (resource is PractitionerRole role)
+            {
+                selectedParticipant.ResourceType = "PractitionerRole";
+                
+                // Role (Code)
+                var roles = role.Code?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                                     .Concat(role.Code?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                                     .Where(s => !string.IsNullOrEmpty(s))
+                                     .Distinct();
+                selectedParticipant.Role = roles != null ? string.Join(", ", roles) : null;
+
+                // Specialty
+                var specialties = role.Specialty?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                                           .Concat(role.Specialty?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                                           .Where(s => !string.IsNullOrEmpty(s))
+                                           .Distinct();
+                selectedParticipant.Specialty = specialties != null ? string.Join(", ", specialties) : null;
+
+                selectedParticipant.Organization = role.Organization?.Display;
+                selectedParticipant.Telecoms = role.Telecom;
+
+                // Resolve Practitioner if linked
+                if (role.Practitioner?.Reference != null)
+                {
+                    var practRefParts = role.Practitioner.Reference.Split('/');
+                    if (practRefParts.Length >= 2)
+                    {
+                       var practitioner = await FetchResource("Practitioner", practRefParts.Last()) as Practitioner;
+                       if (practitioner != null)
+                       {
+                            // Prefer Practitioner Name
+                            var name = practitioner.Name?.FirstOrDefault();
+                            if (name != null)
+                            {
+                                var given = string.Join(" ", name.Given ?? new string[0]);
+                                selectedParticipant.Name = $"{given} {name.Family}".Trim();
+                            }
+                            
+                            // Merge/Prefer Practitioner Telecoms
+                            if (practitioner.Telecom != null)
+                            {
+                                selectedParticipant.Telecoms.AddRange(practitioner.Telecom);
+                            }
+                       }
+                    }
+                }
+            }
+            else if (resource is RelatedPerson related)
+            {
+                selectedParticipant.ResourceType = "RelatedPerson";
+                
+                // Relationships (support multiple)
+                var rels = related.Relationship?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                                               .Concat(related.Relationship?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                                               .Where(s => !string.IsNullOrEmpty(s))
+                                               .Distinct();
+                selectedParticipant.Relationship = rels != null ? string.Join(", ", rels) : null;
+
+                selectedParticipant.Telecoms = related.Telecom;
+            }
+            else if (resource is Practitioner practitioner)
+            {
+                 selectedParticipant.ResourceType = "Practitioner";
+                 // Prefer Practitioner Name
+                var name = practitioner.Name?.FirstOrDefault();
+                if (name != null)
+                {
+                    var given = string.Join(" ", name.Given ?? new string[0]);
+                    selectedParticipant.Name = $"{given} {name.Family}".Trim();
+                }
+                 selectedParticipant.Telecoms = practitioner.Telecom;
+            }
+        }
+        catch (Exception ex)
+        {
+             Console.WriteLine($"Error resolving participant: {ex.Message}");
+        }
+
+        isResolvingParticipant = false;
+        StateHasChanged();
+    }
+
+    private async Task<Resource?> FetchResource(string type, string id)
+    {
+        var parser = new FhirJsonParser();
+        var keys = await LocalStorage.KeysAsync();
+        
+        // Strategy: Look for Key starting with "ResourceType-Id"
+        var prefix = $"{type}-{id}";
+        
+        // Exact-ish match
+        var key = keys.FirstOrDefault(k => k.StartsWith(prefix));
+        if (key != null)
+        {
+             var json = await LocalStorage.GetItemAsStringAsync(key);
+             if (!string.IsNullOrEmpty(json))
+             {
+                 return parser.Parse<Resource>(json);
+             }
+        }
+        
+        return null;
+    }
+
+    private void CloseParticipantModal()
+    {
+        selectedParticipant = null;
+    }
+
+    // --- Helpers ---
     private string GetQuestionnaireResponseDate(QuestionnaireResponse qr)
     {
         if (!string.IsNullOrEmpty(qr.Authored))
@@ -298,31 +556,8 @@
         
         return "-";
     }
-
-    private string GetParticipants()
-    {
-        // Priority 1: Encounter participants
-        if (acpData?.Encounter?.Participant?.Any() == true)
-        {
-            var participants = acpData.Encounter.Participant
-                .Select(p => p.Individual?.Display)
-                .Where(d => !string.IsNullOrEmpty(d));
-            var result = string.Join(", ", participants);
-            if (!string.IsNullOrEmpty(result)) return result;
-        }
-        
-        // Priority 2: Procedure performers
-        if (acpData?.Procedure?.Performer?.Any() == true)
-        {
-            var participants = acpData.Procedure.Performer
-                .Select(p => p.Actor?.Display)
-                .Where(d => !string.IsNullOrEmpty(d));
-            return string.Join(", ", participants);
-        }
-        
-        return string.Empty;
-    }
-
+    
+    // --- Legally Capable Utils ---
     private (bool? isCapable, string? comment) GetLegallyCapableInfo()
     {
         var patient = acpData?.Patient;
@@ -386,5 +621,19 @@
         public Patient? Patient { get; set; }
         public Procedure? Procedure { get; set; }
         public Encounter? Encounter { get; set; }
+    }
+    
+    private record ParticipantInfo(string Display, string Reference);
+    
+    private class ParticipantDetail 
+    {
+        public string Name { get; set; } = "";
+        public string Reference { get; set; } = "";
+        public string ResourceType { get; set; } = "";
+        public string? Role { get; set; }
+        public string? Specialty { get; set; }
+        public string? Organization { get; set; }
+        public string? Relationship { get; set; }
+        public List<ContactPoint> Telecoms { get; set; } = new();
     }
 }

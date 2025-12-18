@@ -17,3 +17,9 @@ Prerequisites: [.NET 8 SDK](https://dotnet.microsoft.com/download)
 - **FauxHR.Core**: Shared logic and interfaces.
 - **FauxHR.Modules.ExitStrategy**: IKNL ACP Implementation Guide logic.
 - **FauxHR.MockData**: Scenario generators.
+
+## 📄 LForms Integration
+The application uses [LHC-Forms](https://lhncbc.github.io/lforms/) to render FHIR Questionnaires.
+- **Assets**: Scripts and CSS are served locally from `FauxHR.Modules.ExitStrategy/wwwroot`.
+- **Questionnaire Definition**: Rendering a `QuestionnaireResponse` requires the original `Questionnaire` definition. This is currently embedded as a resource in `FauxHR.Modules.ExitStrategy`.
+- **Usage**: The helper `wwwroot/js/lforms-helper.js` handles the merging of the Response data into the Questionnaire definition before rendering.
