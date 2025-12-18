@@ -72,7 +72,7 @@
         try
         {
             string? json = null;
-            var parser = new FhirJsonParser();
+            var parser = new FhirJsonDeserializer();
 
             // Strategy 1: Direct key lookup assuming Key == "QuestionnaireResponse-{Id}"
             var key = $"QuestionnaireResponse-{Id}";
@@ -93,11 +93,10 @@
             }
 
             // Strategy 3: Iterate all QR keys and check the Resource ID inside content
-            // This handles cases where Key and ID are completely different (e.g. Key=GUID, ID=BusinessID)
             if (string.IsNullOrEmpty(json))
             {
                 var keys = await LocalStorage.KeysAsync();
-                var qrKeys = keys.Where(k => k.StartsWith("QuestionnaireResponse-")).ToList();
+                var qrKeys = keys.Where(k => k.Contains("QuestionnaireResponse")).ToList(); // Relaxed match
                 
                 foreach(var k in qrKeys)
                 {
@@ -106,8 +105,8 @@
                         var potentialJson = await LocalStorage.GetItemAsStringAsync(k);
                         if (!string.IsNullOrEmpty(potentialJson))
                         {
-                            var qr = parser.Parse<QuestionnaireResponse>(potentialJson);
-                            if (qr.Id == Id)
+                            var qr = parser.Deserialize<QuestionnaireResponse>(potentialJson);
+                            if (qr != null && qr.Id == Id)
                             {
                                 json = potentialJson;
                                 break;
@@ -126,17 +125,27 @@
                 return;
             }
 
-            currentQR = parser.Parse<QuestionnaireResponse>(json);
+            currentQR = parser.Deserialize<QuestionnaireResponse>(json);
 
             // 2. Load embedded Questionnaire
             string questionnaireJson = "";
             var assembly = typeof(FauxHR.Modules.ExitStrategy.ExitStrategyModule).Assembly;
             var resourceName = "FauxHR.Modules.ExitStrategy.Questionnaire-ACP-zib2020.json";
             
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-            using (StreamReader reader = new StreamReader(stream))
+            using (Stream? stream = assembly.GetManifestResourceStream(resourceName))
             {
-                questionnaireJson = await reader.ReadToEndAsync();
+                if (stream == null)
+                {
+                    errorMessage = "Embedded Questionnaire definition not found.";
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+                
+                using (StreamReader reader = new StreamReader(stream))
+                {
+                    questionnaireJson = await reader.ReadToEndAsync();
+                }
             }
 
             // Wait for UI to update so container exists

@@ -8,7 +8,7 @@ namespace FauxHR.App.Services;
 public class FhirService : IFhirService
 {
     private readonly AppState _appState;
-    private FhirClient _client;
+    private FhirClient _client = default!;
 
     public FhirService(AppState appState)
     {
@@ -99,9 +99,21 @@ public class FhirService : IFhirService
             
             return resource as Bundle ?? new Bundle();
         }
-        catch (FhirOperationException)
+        catch (FhirOperationException ex)
         {
-            return new Bundle();
+            if (ex.Outcome != null)
+            {
+                 return new Bundle
+                {
+                    Type = Bundle.BundleType.Searchset,
+                    Total = 1,
+                    Entry = new List<Bundle.EntryComponent>
+                    {
+                        new Bundle.EntryComponent { Resource = ex.Outcome }
+                    }
+                };
+            }
+            return new Bundle(); // Fallback if no outcome
         }
     }
 
@@ -111,9 +123,9 @@ public class FhirService : IFhirService
         {
             return await _client.GetAsync(path);
         }
-        catch (FhirOperationException)
+        catch (FhirOperationException ex)
         {
-            return null;
+            return ex.Outcome; // Return the outcome on error so caller can inspect it
         }
     }
 }

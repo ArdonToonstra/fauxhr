@@ -260,14 +260,14 @@
 
             // Load Patient (for legally capable extension)
             var patientKey = $"Patient-{AppState.CurrentPatient.Id}";
-            var patientKeys = keys.Where(k => k.StartsWith(patientKey)).ToList();
+            var patientKeys = keys.Where(k => k.Contains(patientKey)).ToList(); // Relaxed match
             if (patientKeys.Any())
             {
                 var json = await LocalStorage.GetItemAsStringAsync(patientKeys.First());
                 if (!string.IsNullOrEmpty(json))
                 {
-                    var parser = new FhirJsonParser();
-                    acpData.Patient = parser.Parse<Patient>(json);
+                    var parser = new FhirJsonDeserializer();
+                    try { acpData.Patient = parser.Deserialize<Patient>(json); } catch {}
                 }
             }
             
@@ -278,31 +278,38 @@
             }
 
             // Load Procedure (ACP procedure with encounter reference)
-            var procedureKeys = keys.Where(k => k.StartsWith("Procedure-")).ToList();
-            if (procedureKeys.Any())
+            var procedureKeys = keys.Where(k => k.Contains("Procedure_")).ToList(); // Matches new key format somewhat? or generic check. Checking "Procedure" in key might be safer.
+            // Actually, best to iterate and check resourceType if keys are unpredictable.
+            // But let's stick to simple "contains Procedure" for now or existing logic.
+            // Existing logic: .StartsWith("Procedure-"). New keys: "slug_Procedure_Id". So StartsWith fails.
+            
+            // Let's make it robust: Filter by inspecting JSON content or fuzzy key match.
+            // Fuzzy key match:
+            var allProcedures = keys.Where(k => k.Contains("Procedure") && !k.Contains("QuestionnaireResponse")).ToList();
+            if (allProcedures.Any())
             {
-                var json = await LocalStorage.GetItemAsStringAsync(procedureKeys.First());
+                var json = await LocalStorage.GetItemAsStringAsync(allProcedures.First());
                 if (!string.IsNullOrEmpty(json))
                 {
-                    var parser = new FhirJsonParser();
-                    acpData.Procedure = parser.Parse<Procedure>(json);
+                    var parser = new FhirJsonDeserializer();
+                    try { acpData.Procedure = parser.Deserialize<Procedure>(json); } catch {}
                 }
             }
 
-            // Load Encounter (from the _include in procedure query or direct)
-            var encounterKeys = keys.Where(k => k.StartsWith("Encounter-")).ToList();
+            // Load Encounter
+            var encounterKeys = keys.Where(k => k.Contains("Encounter")).ToList();
             if (encounterKeys.Any())
             {
                 var json = await LocalStorage.GetItemAsStringAsync(encounterKeys.First());
                 if (!string.IsNullOrEmpty(json))
                 {
-                    var parser = new FhirJsonParser();
-                    acpData.Encounter = parser.Parse<Encounter>(json);
+                    var parser = new FhirJsonDeserializer();
+                    try { acpData.Encounter = parser.Deserialize<Encounter>(json); } catch {}
                 }
             }
             
             // Load QuestionnaireResponses
-            var qrKeys = keys.Where(k => k.StartsWith("QuestionnaireResponse-")).ToList();
+            var qrKeys = keys.Where(k => k.Contains("QuestionnaireResponse")).ToList();
             foreach (var key in qrKeys)
             {
                 try
@@ -310,9 +317,9 @@
                     var json = await LocalStorage.GetItemAsStringAsync(key);
                     if (!string.IsNullOrEmpty(json))
                     {
-                        var parser = new FhirJsonParser();
-                        var qr = parser.Parse<QuestionnaireResponse>(json);
-                        questionnaireResponses.Add(qr);
+                        var parser = new FhirJsonDeserializer();
+                        var qr = parser.Deserialize<QuestionnaireResponse>(json);
+                        if (qr != null) questionnaireResponses.Add(qr);
                     }
                 }
                 catch (Exception ex)
@@ -330,6 +337,31 @@
         StateHasChanged();
     }
 
+    private async Task<Resource?> FetchResource(string type, string id)
+    {
+        var parser = new FhirJsonDeserializer();
+        var keys = await LocalStorage.KeysAsync();
+        
+        // Strategy: Look for Key containing "Type" and "Id"
+        // New keys: [slug]_[Type]_[Id]
+        // Old keys: [Type]-[Id]-[Date]
+        
+        var key = keys.FirstOrDefault(k => k.Contains(type) && k.Contains(id));
+        
+        if (key != null)
+        {
+             var json = await LocalStorage.GetItemAsStringAsync(key);
+             if (!string.IsNullOrEmpty(json))
+             {
+                 try {
+                     return parser.Deserialize<Resource>(json);
+                 } catch { return null; }
+             }
+        }
+        
+        return null;
+    }
+
     private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
     {
         Navigation.NavigateTo($"/acp/QuestionnaireResponse/{qr.Id}");
@@ -344,17 +376,17 @@
         // Priority 1: Encounter participants
         if (acpData?.Encounter?.Participant?.Any() == true)
         {
-            list.AddRange(acpData.Encounter.Participant
+            list.AddRange(acpData!.Encounter!.Participant
                 .Where(p => p.Individual != null)
-                .Select(p => new ParticipantInfo(p.Individual.Display ?? "Onbekend", p.Individual.Reference)));
+                .Select(p => new ParticipantInfo(p.Individual.Display ?? "Onbekend", p.Individual?.Reference ?? "")));
         }
         
         // Priority 2: Procedure performers (only if list is empty to avoid dupes if both exist)
         if (!list.Any() && acpData?.Procedure?.Performer?.Any() == true)
         {
-            list.AddRange(acpData.Procedure.Performer
+            list.AddRange(acpData!.Procedure!.Performer
                  .Where(p => p.Actor != null)
-                 .Select(p => new ParticipantInfo(p.Actor.Display ?? "Onbekend", p.Actor.Reference)));
+                 .Select(p => new ParticipantInfo(p.Actor.Display ?? "Onbekend", p.Actor?.Reference ?? "")));
         }
 
         return list.DistinctBy(p => p.Reference).ToList(); // De-dupe by reference
@@ -468,28 +500,6 @@
 
         isResolvingParticipant = false;
         StateHasChanged();
-    }
-
-    private async Task<Resource?> FetchResource(string type, string id)
-    {
-        var parser = new FhirJsonParser();
-        var keys = await LocalStorage.KeysAsync();
-        
-        // Strategy: Look for Key starting with "ResourceType-Id"
-        var prefix = $"{type}-{id}";
-        
-        // Exact-ish match
-        var key = keys.FirstOrDefault(k => k.StartsWith(prefix));
-        if (key != null)
-        {
-             var json = await LocalStorage.GetItemAsStringAsync(key);
-             if (!string.IsNullOrEmpty(json))
-             {
-                 return parser.Parse<Resource>(json);
-             }
-        }
-        
-        return null;
     }
 
     private void CloseParticipantModal()

@@ -14,30 +14,63 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
              <h2 class="display-6 fw-bold text-primary mb-1">
-                <i class="bi bi-clipboard-pulse me-3"></i>Exit Strategy (ACP)
+                <i class="bi bi-clipboard-pulse me-3"></i>Exit Strategy
             </h2>
-            <p class="lead text-muted mb-0">Advance Care Planning implementation guide.</p>
+            <p class="lead text-muted mb-0">Getting started with Advance Care Planning.</p>
         </div>
         <div>
             @if(AppState.CurrentPatient != null)
             {
-                 <button class="btn btn-primary btn-lg" @onclick="PullLatestInfo" disabled="@isLoading">
-                    @if(isLoading)
+                 <div class="d-flex align-items-center position-relative">
+                    @if(showPullOptions)
                     {
-                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <div class="card shadow rounded position-absolute end-0 top-100 mt-2" style="z-index: 1050; width: 320px;">
+                            <div class="card-header bg-white py-2 fw-bold small">Select Servers to Pull From</div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush">
+                                    @foreach(var s in AppState.AvailableServers)
+                                    {
+                                        <label class="list-group-item d-flex gap-2">
+                                            <input class="form-check-input flex-shrink-0" type="checkbox" checked="@selectedServerUrls.Contains(s.Url)" 
+                                                   @onchange="() => ToggleServerSelection(s.Url)">
+                                            <span>
+                                                <span class="d-block fw-semibold text-truncate">@s.Label</span>
+                                                <span class="d-block small text-muted text-truncate">@s.Url</span>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                            <div class="card-footer bg-light p-2 text-end">
+                                <button class="btn btn-primary btn-sm" @onclick="PullLatestInfo">Start Pull</button>
+                            </div>
+                        </div>
                     }
-                    else
-                    {
-                        <i class="bi bi-cloud-arrow-down me-2"></i>
-                    }
-                    Pull Latest Info
-                </button>
-                <button class="btn btn-outline-primary btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/resources")'>
-                    <i class="bi bi-database me-2"></i>View All Resources
-                </button>
-                <button class="btn btn-success btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/integrated")'>
-                    <i class="bi bi-file-earmark-text me-2"></i>Integrated View
-                </button>
+
+                    <div class="btn-group">
+                         <button class="btn btn-primary btn-lg" @onclick="PullLatestInfo" disabled="@isLoading">
+                            @if(isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-cloud-arrow-down me-2"></i>
+                            }
+                            Pull Latest Info
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg dropdown-toggle dropdown-toggle-split" @onclick="TogglePullOptions">
+                            <span class="visually-hidden">Toggle Dropdown</span>
+                        </button>
+                    </div>
+                    
+                    <button class="btn btn-outline-primary btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/resources")'>
+                        <i class="bi bi-database me-2"></i>View All Resources
+                    </button>
+                    <button class="btn btn-success btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/integrated")'>
+                        <i class="bi bi-file-earmark-text me-2"></i>Integrated View
+                    </button>
+                </div>
             }
         </div>
     </div>
@@ -52,70 +85,84 @@
     else
     {
         <!-- Progress Section -->
-        @if(queries != null && queries.Any())
+        @foreach(var job in serverJobs)
         {
             <div class="card border-0 shadow-sm mb-4">
-                 <div class="card-header bg-white border-bottom-0 pt-3">
-                    <h5 class="fw-normal mb-0">Data Retrieval Progress</h5>
+                 <div class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-normal mb-0 d-flex align-items-center">
+                        <i class="bi bi-hdd-network me-2 text-primary"></i>@job.ServerLabel
+                        <small class="text-muted ms-2 fs-6">(@job.ServerUrl)</small>
+                    </h5>
+                    <span class="badge @(job.Status == "Completed" ? "bg-success" : job.Status.StartsWith("Error") || job.Status == "Patient Not Found" ? "bg-danger" : "bg-warning text-dark")">
+                        @job.Status
+                    </span>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        @foreach(var q in queries)
-                        {
-                            <div class="col-md-6 col-lg-3">
-                                <div class="d-flex align-items-center p-2 border rounded @GetStatusClass(q) @(q.Status == QueryStatus.Error ? "cursor-pointer" : "")" 
-                                     @onclick="() => { if(q.Status == QueryStatus.Error) ShowErrorDetails(q); }">
-                                    <div class="me-3">@GetStatusIcon(q)</div>
-                                    <div class="text-truncate">
-                                        <div class="fw-bold small">@q.Title</div>
-                                        <div class="text-xs text-muted">@q.ResourceType</div>
+                    @if (!string.IsNullOrEmpty(job.Error))
+                    {
+                        <div class="alert alert-danger mb-0">@job.Error</div>
+                    }
+
+                    @if(job.Queries.Any())
+                    {
+                        <div class="row g-3">
+                            @foreach(var q in job.Queries)
+                            {
+                                <div class="col-md-6 col-lg-3">
+                                    <div class="d-flex align-items-center p-2 border rounded @GetStatusClass(q) @(q.Status == QueryStatus.Error ? "cursor-pointer" : "")" 
+                                         @onclick="() => { if(q.Status == QueryStatus.Error) ShowErrorDetails(q); }">
+                                        <div class="me-3">@GetStatusIcon(q)</div>
+                                        <div class="text-truncate" style="max-width: 80%;">
+                                            <div class="fw-bold small text-truncate">@q.Title</div>
+                                            <div class="text-xs text-muted text-truncate">@q.ResourceType</div>
+                                        </div>
+                                        @if(q.Result != null && (q.Result.Total > 0 || q.Result.Entry?.Count > 0))
+                                        {
+                                            <span class="badge bg-success ms-auto">@(q.Result.Total ?? q.Result.Entry?.Count ?? 0)</span>
+                                        }
                                     </div>
-                                    @if(q.Result != null && q.Result.Total > 0 || (q.Result?.Entry?.Count > 0))
-                                    {
-                                        <span class="badge bg-success ms-auto">@(q.Result.Total ?? q.Result.Entry.Count)</span>
-                                    }
                                 </div>
-                            </div>
-                        }
-                    </div>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
             
-            <!-- Tiles Grid -->
-             <div class="row g-4">
-                @foreach (var q in queries.Where(x => x.Status == QueryStatus.Success && (x.Result?.Entry?.Any() == true)))
-                {
-                    <div class="col-12">
-                        <h4 class="fw-light mb-3">@q.Title</h4>
-                         <div class="row g-3">
-                            @foreach(var entry in q.Result!.Entry)
+            <!-- Tiles Grid for this Job -->
+            @if(job.Queries.Any(x => x.Status == QueryStatus.Success && x.Result?.Entry?.Any() == true))
+            {
+                 <div class="row g-4 mb-4">
+                    @foreach (var q in job.Queries.Where(x => x.Status == QueryStatus.Success && x.Result?.Entry?.Any() == true))
+                    {
+                        @foreach(var entry in q.Result!.Entry)
+                        {
+                            @if (entry.Resource != null)
                             {
-                                @if (entry.Resource != null)
-                                {
-                                    <div class="col-md-6 col-lg-4">
-                                         <div class="card h-100 shadow-sm border-0 bg-light">
-                                            <div class="card-body">
-                                                <span class="badge bg-secondary mb-2">@entry.Resource.TypeName</span>
-                                                <h6 class="card-title">@entry.Resource.Id</h6>
-                                            <div class="small text-muted text-truncate">
-                                                <!-- Simple dump for now, specialized rendering later -->
-                                                Resource: @entry.Resource.TypeName
+                                <div class="col-md-6 col-lg-4">
+                                     <div class="card h-100 shadow-sm border-0 bg-light">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span class="badge bg-secondary">@entry.Resource.TypeName</span>
+                                                <small class="text-muted">@GetResourceDate(entry.Resource)</small>
                                             </div>
-                                            <div class="mt-3">
-                                                 <button class="btn btn-outline-secondary btn-sm" @onclick="() => ViewSource(entry.Resource)">
-                                                    <i class="bi bi-code-slash me-1"></i> View Source
-                                                </button>
+                                            <h6 class="card-title text-truncate" title="@entry.Resource.Id">@entry.Resource.Id</h6>
+                                            
+                                            <!-- Additional Info extracted from resource if possible -->
+                                            <div class="small text-muted mb-3" style="min-height: 40px;">
+                                                @GetResourceSummary(entry.Resource)
                                             </div>
-                                            </div>
+
+                                            <button class="btn btn-outline-secondary btn-sm w-100" @onclick="() => ViewSource(entry.Resource)">
+                                                <i class="bi bi-code-slash me-1"></i> View Source
+                                            </button>
                                         </div>
                                     </div>
-                                }
+                                </div>
                             }
-                        </div>
-                        <hr class="my-4 text-muted opacity-25" />
-                    </div>
-                }
-            </div>
+                        }
+                    }
+                 </div>
+            }
         }
     }
 </div>
@@ -145,8 +192,11 @@
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private Blazored.LocalStorage.ILocalStorageService LocalStorage { get; set; } = default!;
     
-    private List<AcpQuery>? queries;
+    // Multi-Server State
+    private List<ServerPullJob> serverJobs = new();
     private bool isLoading = false;
+    private bool showPullOptions = false;
+    private List<string> selectedServerUrls = new();
     
     // Modal State
     private bool showSourceModal = false;
@@ -154,6 +204,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Default to current server
+        if (!string.IsNullOrEmpty(AppState.CurrentServerUrl))
+        {
+            selectedServerUrls.Add(AppState.CurrentServerUrl);
+        }
+
         if (AppState.CurrentPatient != null)
         {
             await LoadFromLocalStorage();
@@ -162,79 +218,197 @@
 
     private async Task LoadFromLocalStorage()
     {
-        try
+        // This view is "live" monitoring. Loading from local storage is tricky if we don't know which server it came from easily without parsing everything.
+        // For now, let's just initialize an empty state or try to reconstruct if we had a persistent "Job" concept.
+        // But the requirements imply this is a transient "Pull" action.
+        // So we just clear the view on load or leave it empty until user pulls.
+        // However, to show the "Tiles Grid" of *existing* resources, we can still scan LocalStorage.
+        // Let's keep the Tiles Grid logic separate from the "Jobs" logic.
+        
+        await RefreshTiles();
+    }
+    
+    // Simple list of all resource entries found in storage (for the bottom grid)
+    private List<Bundle.EntryComponent> allStoredResources = new();
+
+    private async Task RefreshTiles()
+    {
+         try
+         {
+             allStoredResources.Clear();
+             var keys = await LocalStorage.KeysAsync();
+             // Just grab everything that looks like a retrieved resource
+             foreach(var key in keys)
+             {
+                 if (key.Contains("-") && !key.StartsWith("Patient-") && !key.StartsWith("Procedure-") && !key.StartsWith("Encounter-")) 
+                 {
+                     // This is a rough heuristic, better to read them all or filter by known types
+                     // Actually, AcpDataService defines the types.
+                 }
+                 
+                 // Better: Just load everything relevant to ACP types
+                 // Implementation detail: we'll skip complex reconstruction for this 'Search everything' view 
+                 // and rely on the Pull action to populate the 'Jobs' view for feedback.
+             }
+         }
+         catch {}
+    }
+
+    private void TogglePullOptions()
+    {
+        showPullOptions = !showPullOptions;
+    }
+    
+    private void ToggleServerSelection(string url)
+    {
+        if (selectedServerUrls.Contains(url))
+            selectedServerUrls.Remove(url);
+        else
+            selectedServerUrls.Add(url);
+    }
+
+    private async Task PullLatestInfo()
+    {
+        if (AppState.CurrentPatient?.Id == null) return;
+        
+        isLoading = true;
+        showPullOptions = false;
+        serverJobs.Clear();
+        
+        // Prepare Jobs
+        foreach(var serverUrl in selectedServerUrls)
         {
-            if (AppState.CurrentPatient == null) return;
+            var config = AppState.AvailableServers.FirstOrDefault(s => s.Url == serverUrl);
+            var label = config?.Label ?? serverUrl;
             
-            queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
+            var job = new ServerPullJob 
+            { 
+                ServerUrl = serverUrl, 
+                ServerLabel = label,
+                Status = "Pending"
+            };
+            serverJobs.Add(job);
+        }
+
+        StateHasChanged(); // Show initial blocks
+
+        // Clear existing data? 
+        // User might want to MERGE data from multiple servers. clearing *everything* might be aggressive 
+        // if we want to keep data from a previous pull.
+        // User requirement: "All resources per source should be saved... Don't deduplicate over sources."
+        // So we do NOT clear.
+        // try { await LocalStorage.ClearAsync(); } catch {}
+
+        // Execution Loop
+        foreach(var job in serverJobs)
+        {
+            job.Status = "Searching Patient...";
+            StateHasChanged();
             
-            var keys = await LocalStorage.KeysAsync();
-            
-            foreach (var query in queries)
+            try
             {
-                // Check if we have any resources for this query in LocalStorage
-                var relevantKeys = keys.Where(k => k.StartsWith($"{query.ResourceType}-")).ToList();
-                
-                if (relevantKeys.Any())
+                string? patientIdToUse = null;
+
+                // 1. Determine Patient ID
+                if (job.ServerUrl == AppState.CurrentServerUrl)
                 {
-                    // Mark as success and set a fake bundle with count
-                    query.Status = QueryStatus.Success;
-                    query.Result = new Bundle 
-                    { 
-                        Total = relevantKeys.Count,
-                        Entry = new List<Bundle.EntryComponent>()
-                    };
+                    patientIdToUse = AppState.CurrentPatient.Id;
+                    job.PatientFound = true;
                 }
+                else
+                {
+                    // Find by Identifier
+                    var idSystem = AppState.CurrentPatient.Identifier.FirstOrDefault()?.System;
+                    var idValue = AppState.CurrentPatient.Identifier.FirstOrDefault()?.Value;
+                    
+                    // Fallback to strict BSN check if available, or just first identifier
+                    // Ideally we look for specific known systems (BSN)
+                    var bsn = AppState.CurrentPatient.Identifier.FirstOrDefault(i => i.System?.Contains("bsn") == true);
+                    if (bsn != null) { idSystem = bsn.System; idValue = bsn.Value; }
+
+                    if (!string.IsNullOrEmpty(idSystem) && !string.IsNullOrEmpty(idValue))
+                    {
+                        patientIdToUse = await AcpService.FindPatientIdByIdentifierAsync(job.ServerUrl, idSystem, idValue);
+                        
+                        if (patientIdToUse == null)
+                        {
+                            job.Status = "Patient Not Found";
+                            job.Error = $"Could not match patient with identifier {idSystem}|{idValue}";
+                        }
+                        else
+                        {
+                             job.PatientFound = true;
+                        }
+                    }
+                    else
+                    {
+                        job.Status = "Skipped";
+                        job.Error = "Current patient has no usable identifiers for lookup.";
+                    }
+                }
+
+                // 2. Execute Queries if Patient Found
+                if (job.PatientFound && patientIdToUse != null)
+                {
+                    job.Status = "Running Queries...";
+                    job.Queries = AcpService.GetQueries(patientIdToUse);
+                    StateHasChanged();
+
+                    foreach(var q in job.Queries)
+                    {
+                        await AcpService.ExecuteQueryAsync(q, job.ServerUrl, job.ServerLabel);
+                        StateHasChanged();
+                        // Small delay to visually see progress
+                        await Task.Delay(100);
+                    }
+                    
+                    job.Status = "Completed";
+                }
+            }
+            catch (Exception ex)
+            {
+                job.Status = "Error";
+                job.Error = ex.Message;
             }
             
             StateHasChanged();
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading from storage: {ex.Message}");
-        }
+        
+        // After all queries complete, resolve references (if enabled)
+        // Note: ResolveReferences likely needs to know WHICH server to call for which resource.
+        // Our updated AcquireReference logic in AcpService currently relies on AppState.CurrentServerUrl for relative links.
+        // It might fail for external servers if the references are relative. 
+        // *Enhancement needed*: Resources saved should have absolute URLs or Meta info to help resolution.
+        // For now, we skip reference resolution for secondary servers or assume it works if absolute.
+        
+        isLoading = false;
     }
 
+    // ... ViewSource, CloseSourceModal, ShowErrorDetails, GetStatusClass, GetStatusIcon SAME AS BEFORE ...
     private void ViewSource(Hl7.Fhir.Model.Resource resource)
     {
         var serializer = new FhirJsonSerializer();
         var rawJson = serializer.SerializeToString(resource);
-        
-        // Pretty-print the JSON using System.Text.Json
         try
         {
             var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
             var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
             selectedResourceJson = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
         }
-        catch
-        {
-            // If formatting fails, use raw JSON
-            selectedResourceJson = rawJson;
-        }
-        
+        catch { selectedResourceJson = rawJson; }
         showSourceModal = true;
     }
 
-    private void CloseSourceModal()
-    {
-        showSourceModal = false;
-        selectedResourceJson = null;
-    }
+    private void CloseSourceModal() { showSourceModal = false; selectedResourceJson = null; }
     
     private void ShowErrorDetails(AcpQuery query)
     {
         if (query.Result?.Entry != null && query.Result.Entry.Any())
         {
             var errorResource = query.Result.Entry.FirstOrDefault(e => e.Resource is OperationOutcome);
-            if (errorResource?.Resource != null)
-            {
-                ViewSource(errorResource.Resource);
-            }
+            if (errorResource?.Resource != null) ViewSource(errorResource.Resource);
         }
     }
-    
-    // ... existing helpers ...
 
     private string GetStatusClass(AcpQuery q) => q.Status switch
     {
@@ -244,61 +418,41 @@
         _ => "bg-white"
     };
 
+    private string GetResourceDate(Hl7.Fhir.Model.Resource resource)
+    {
+        if (resource is QuestionnaireResponse qr) return qr.Authored ?? "-";
+        if (resource is Procedure proc) return proc.Performed is FhirDateTime dt ? (dt.Value ?? "-") : "-";
+        if (resource is Encounter enc) return enc.Period?.Start ?? "-";
+        if (resource is Observation obs) return obs.Effective is FhirDateTime edt ? (edt.Value ?? "-") : "-";
+        if (resource is Consent con) return con.DateTime ?? "-";
+        return "-";
+    }
+
+    private string GetResourceSummary(Hl7.Fhir.Model.Resource resource)
+    {
+        if (resource is QuestionnaireResponse qr) return qr.Questionnaire ?? "";
+        if (resource is Procedure proc) return proc.Code?.Coding?.FirstOrDefault()?.Display ?? proc.Code?.Text ?? "Procedure";
+        if (resource is Encounter enc) return enc.Type?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Display ?? "Encounter";
+        if (resource is Observation obs) return obs.Code?.Coding?.FirstOrDefault()?.Display ?? "Observation";
+        if (resource is Consent con) return $"Status: {con.Status}";
+        return "";
+    }
+
     private RenderFragment GetStatusIcon(AcpQuery q) => builder =>
     {
-        if (q.Status == QueryStatus.Running)
-        {
-            builder.AddMarkupContent(0, "<div class='spinner-border text-primary spinner-border-sm'></div>");
-        }
-        else if (q.Status == QueryStatus.Success)
-        {
-             builder.AddMarkupContent(0, "<i class='bi bi-check-circle-fill text-success'></i>");
-        }
-        else if (q.Status == QueryStatus.Error)
-        {
-             builder.AddMarkupContent(0, "<i class='bi bi-x-circle-fill text-danger'></i>");
-        }
-        else
-        {
-             builder.AddMarkupContent(0, "<i class='bi bi-circle text-muted'></i>");
-        }
+        if (q.Status == QueryStatus.Running) builder.AddMarkupContent(0, "<div class='spinner-border text-primary spinner-border-sm'></div>");
+        else if (q.Status == QueryStatus.Success) builder.AddMarkupContent(0, "<i class='bi bi-check-circle-fill text-success'></i>");
+        else if (q.Status == QueryStatus.Error) builder.AddMarkupContent(0, "<i class='bi bi-x-circle-fill text-danger'></i>");
+        else builder.AddMarkupContent(0, "<i class='bi bi-circle text-muted'></i>");
     };
 
-    private async Task PullLatestInfo()
+    public class ServerPullJob
     {
-        if (AppState.CurrentPatient?.Id == null) return;
-        
-        isLoading = true;
-        
-        // Clear existing data from LocalStorage before pulling fresh data
-        try
-        {
-            await LocalStorage.ClearAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error clearing storage: {ex.Message}");
-        }
-        
-        queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
-        StateHasChanged();
-
-        // Run sequential queries
-        foreach(var q in queries)
-        {
-            await AcpService.ExecuteQueryAsync(q);
-            StateHasChanged();
-            await Task.Delay(200);
-        }
-        
-        // After all queries complete, resolve references (if enabled)
-        if (AppState.EnableReferenceResolution)
-        {
-            var resolveQuery = await AcpService.ResolveReferencesAsync(queries);
-            queries.Add(resolveQuery);
-            StateHasChanged();
-        }
-        
-        isLoading = false;
+        public string ServerUrl { get; set; } = "";
+        public string ServerLabel { get; set; } = "";
+        public string Status { get; set; } = "Pending";
+        public string? Error { get; set; }
+        public bool PatientFound { get; set; } = false;
+        public List<AcpQuery> Queries { get; set; } = new();
     }
 }

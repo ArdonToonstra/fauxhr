@@ -3,6 +3,7 @@ using FauxHR.Core.Services;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
 using System.Text.Json;
+using Hl7.Fhir.Rest;
 using Task = System.Threading.Tasks.Task;
 
 namespace FauxHR.Modules.ExitStrategy.Services;
@@ -94,16 +95,94 @@ public class AcpDataService
         };
     }
 
-    public async Task ExecuteQueryAsync(AcpQuery query)
+    public async Task<string?> FindPatientIdByIdentifierAsync(string serverUrl, string system, string value)
+    {
+        try
+        {
+            // Use existing service if querying the current server (optimization & consistency)
+            if (serverUrl == _appState.CurrentServerUrl)
+            {
+                var patient = await _fhirService.SearchPatientByIdentifierAsync(system, value);
+                return patient?.Id;
+            }
+
+            // Use explicit FhirClient for dynamic server URLs
+            // Critical: Check for browser platform or just always pass handler to be safe in Blazor WASM
+            using var handler = new HttpClientHandler(); 
+            var settings = new Hl7.Fhir.Rest.FhirClientSettings 
+            { 
+                VerifyFhirVersion = false,
+                PreferredFormat = ResourceFormat.Json 
+            };
+            var client = new Hl7.Fhir.Rest.FhirClient(serverUrl, settings, handler); // Handler avoids PlatformNotSupportedException
+            
+            var query = new[] { $"identifier={system}|{value}" };
+            
+            var bundle = await client.SearchAsync<Patient>(query);
+            
+            if (bundle?.Entry != null && bundle.Entry.Count >= 1 && bundle.Entry[0].Resource is Patient p)
+            {
+                return p.Id;
+            }
+            
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error finding patient on {serverUrl}: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task ExecuteQueryAsync(AcpQuery query, string? serverUrl = null, string? serverLabel = null)
     {
         if (query.Status == QueryStatus.Running) return;
 
         query.Status = QueryStatus.Running;
-        // Ideally trigger UI update here via callback if passed, but simpler to rely on caller re-rendering.
         
         try
         {
-            var bundle = await _fhirService.SearchResourceAsync(query.ResourceType, query.QueryString);
+            Bundle? bundle;
+            string effectiveServerUrl = serverUrl ?? _appState.CurrentServerUrl;
+
+            // Normalize URLs for comparison (trim trailing slashes)
+            bool isCurrentServer = string.IsNullOrEmpty(serverUrl) || 
+                                   serverUrl.TrimEnd('/') == _appState.CurrentServerUrl.TrimEnd('/');
+
+            if (!isCurrentServer && !string.IsNullOrEmpty(serverUrl))
+            {
+                // Dynamic server query
+                using var handler = new HttpClientHandler();
+                var settings = new Hl7.Fhir.Rest.FhirClientSettings 
+                { 
+                    VerifyFhirVersion = false,
+                    PreferredFormat = ResourceFormat.Json
+                };
+                var client = new Hl7.Fhir.Rest.FhirClient(serverUrl, settings, handler);
+
+                // Use GetAsync to handle the pre-formatted query string exactly as defined
+                var resource = await client.GetAsync($"{query.ResourceType}?{query.QueryString}");
+                
+                if (resource is OperationOutcome outcome)
+                {
+                     bundle = new Bundle
+                     {
+                         Type = Bundle.BundleType.Searchset,
+                         Total = 1,
+                         Entry = new List<Bundle.EntryComponent> { new Bundle.EntryComponent { Resource = outcome } }
+                     };
+                }
+                else
+                {
+                    bundle = resource as Bundle ?? new Bundle();
+                }
+            }
+            else
+            {
+                // Default service (already handled correctly)
+                bundle = await _fhirService.SearchResourceAsync(query.ResourceType, query.QueryString);
+            }
+            
             query.Result = bundle;
             
             // Check if the bundle itself is null or if it contains OperationOutcome
@@ -138,8 +217,8 @@ public class AcpDataService
             }
             
             query.Status = hasError ? QueryStatus.Error : QueryStatus.Success;
-
-            // Save to LocalStorage (even errors, so user can inspect them)
+            
+            // Save to LocalStorage
             if (bundle.Entry != null)
             {
                 foreach (var entry in bundle.Entry)
@@ -150,31 +229,66 @@ public class AcpDataService
                         
                         // Update Meta.Source
                         if (res.Meta == null) res.Meta = new Meta();
-                        res.Meta.Source = _appState.CurrentServerUrl;
+                        res.Meta.Source = effectiveServerUrl;
 
-                        // Generate Filename-like Key: [ResourceType]-[ID]-[YYYYMMDD]
-                        // Ensure ID is set (generate one if missing, e.g., for OperationOutcome)
-                        var resourceId = !string.IsNullOrEmpty(res.Id) ? res.Id : Guid.NewGuid().ToString();
-                        var key = $"{res.TypeName}-{resourceId}-{DateTime.Now:yyyyMMdd}";
+                        // Skip saving OperationOutcome from a "Success" query unless it's the specific error we found earlier?
+                        // Actually the user wants to see it. If hasError is true, the UI handles it via 'ShowErrorDetails'.
+                        // But we should save valid resources found.
+                        // If the resource is OperationOutcome, saving it might be useful for persistent logs, 
+                        // but `Overview.razor` tiles typically show clinical resources.
+                        // Let's save everything.
                         
-                        // Serialize with pretty print
-                        var serializer = new FhirJsonSerializer();
-                        var rawJson = serializer.SerializeToString(res);
+                        // Generate Source-Scoped Key
+                        string storageKey = GetStorageKey(effectiveServerUrl, res);
                         
-                        // Pretty-print the JSON using System.Text.Json
-                        try
+                        // Deduplication Logic: Check LastUpdated
+                        bool shouldSave = true;
+                        
+                        if (await _localStorage.ContainKeyAsync(storageKey))
                         {
-                            var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
-                            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-                            var json = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
-                            
-                            // Save
-                            await _localStorage.SetItemAsStringAsync(key, json);
+                            try 
+                            {
+                                var existingJson = await _localStorage.GetItemAsStringAsync(storageKey);
+                                
+                                // Lightweight check using System.Text.Json
+                                if (!string.IsNullOrEmpty(existingJson))
+                                {
+                                    using var doc = JsonDocument.Parse(existingJson);
+                                    if (doc.RootElement.TryGetProperty("meta", out var meta) && 
+                                        meta.TryGetProperty("lastUpdated", out var lastUpdatedProp) &&
+                                        lastUpdatedProp.TryGetDateTime(out var existingLastUpdated))
+                                    {
+                                        if (res.Meta?.LastUpdated != null && res.Meta.LastUpdated <= existingLastUpdated)
+                                        {
+                                            shouldSave = false; // Existing is newer or same
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // If parsing fails, default to overwriting (safer to have latest pulled data)
+                                Console.WriteLine($"Error checking existing resource {storageKey}: {ex.Message}");
+                            }
                         }
-                        catch
+                        
+                        if (shouldSave)
                         {
-                            // If formatting fails, save raw JSON
-                            await _localStorage.SetItemAsStringAsync(key, rawJson);
+                            // Serialize with pretty print
+                            var serializer = new FhirJsonSerializer();
+                            var rawJson = serializer.SerializeToString(res);
+                            
+                            try
+                            {
+                                var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
+                                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                                var json = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
+                                await _localStorage.SetItemAsStringAsync(storageKey, json);
+                            }
+                            catch
+                            {
+                                await _localStorage.SetItemAsStringAsync(storageKey, rawJson);
+                            }
                         }
                     }
                 }
@@ -185,6 +299,22 @@ public class AcpDataService
             query.ErrorMessage = ex.Message;
             query.Status = QueryStatus.Error;
         }
+    }
+
+    private string GetStorageKey(string serverUrl, Resource res)
+    {
+        // Create a slug for the server to keep keys readable but unique per source
+        // E.g. https://server.fire.ly -> server_fire_ly
+        // http://hapi.fhir.org/baseR4 -> hapi_fhir_org_baseR4
+        var uri = new Uri(serverUrl);
+        var hostSlug = uri.Host.Replace(".", "_");
+        var pathSlug = uri.AbsolutePath.Trim('/').Replace("/", "_");
+        var serverSlug = $"{hostSlug}_{(string.IsNullOrEmpty(pathSlug) ? "" : pathSlug)}".TrimEnd('_');
+        
+        // Ensure ID presence
+        var resourceId = !string.IsNullOrEmpty(res.Id) ? res.Id : Guid.NewGuid().ToString();
+        
+        return $"{serverSlug}_{res.TypeName}_{resourceId}"; 
     }
 
     public async Task<AcpQuery> ResolveReferencesAsync(List<AcpQuery> completedQueries)

@@ -13,6 +13,12 @@ public class AppState
     public bool EnableReferenceResolution { get; private set; } = true;
     public int ReferenceResolutionDepth { get; private set; } = 3;
 
+    public List<FhirServerConfig> AvailableServers { get; private set; } = new()
+    {
+        new FhirServerConfig { Url = "https://server.fire.ly", Label = "Firely Server" },
+        new FhirServerConfig { Url = "http://hapi.fhir.org/baseR4", Label = "HAPI Server" }
+    };
+
     public event Action? OnChange;
 
     public void SetServerUrl(string url)
@@ -20,6 +26,25 @@ public class AppState
         if (CurrentServerUrl != url)
         {
             CurrentServerUrl = url;
+            NotifyStateChanged();
+        }
+    }
+    
+    public void AddServer(string url, string label)
+    {
+        if (!AvailableServers.Any(s => s.Url == url))
+        {
+            AvailableServers.Add(new FhirServerConfig { Url = url, Label = label });
+            NotifyStateChanged();
+        }
+    }
+    
+    public void RemoveServer(string url)
+    {
+        var server = AvailableServers.FirstOrDefault(s => s.Url == url);
+        if (server != null)
+        {
+            AvailableServers.Remove(server);
             NotifyStateChanged();
         }
     }
@@ -41,4 +66,10 @@ public class AppState
     }
 
     private void NotifyStateChanged() => OnChange?.Invoke();
+}
+
+public class FhirServerConfig
+{
+    public string Url { get; set; } = "";
+    public string Label { get; set; } = "";
 }

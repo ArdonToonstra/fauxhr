@@ -18,20 +18,47 @@
         <div class="col-md-6">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">FHIR Server</h5>
-                    <div class="mb-3">
-                        <label class="form-label">Server URL</label>
-                        <div class="input-group">
-                             <input type="text" @bind="serverUrl" class="form-control" />
-                             <button class="btn btn-outline-secondary" @onclick="ResetServerUrl">Default</button>
-                        </div>
-                        <div class="form-text">Point to a valid FHIR R4 server.</div>
+                    <h5 class="card-title mb-3">FHIR Servers</h5>
+                    
+                    <div class="list-group mb-3">
+                        @foreach (var server in AppState.AvailableServers)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold">@server.Label</div>
+                                    <div class="small text-muted">@server.Url</div>
+                                </div>
+                                <div>
+                                    @if(server.Url == AppState.CurrentServerUrl)
+                                    {
+                                        <span class="badge bg-success me-2">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => SetActiveServer(server.Url)">Use</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveServer(server.Url)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
-                    <button class="btn btn-primary" @onclick="SaveServerSettings">Save Configuration</button>
-                     @if (serverSaved)
-                    {
-                        <span class="text-success ms-2 fade-in">Saved!</span>
-                    }
+
+                    <div class="border-top pt-3">
+                        <label class="form-label small fw-bold">Add New Server</label>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <input type="text" class="form-control form-control-sm" placeholder="Label" @bind="newServerLabel" />
+                            </div>
+                            <div class="col-6">
+                                <input type="text" class="form-control form-control-sm" placeholder="https://..." @bind="newServerUrl" />
+                            </div>
+                            <div class="col-2">
+                                <button class="btn btn-sm btn-secondary w-100" @onclick="AddServer">Add</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -92,9 +119,10 @@
 </div>
 
 @code {
-    private string serverUrl = "";
+    private string newServerLabel = "";
+    private string newServerUrl = "";
+    
     private bool isLoading = false;
-    private bool serverSaved = false;
     private bool referenceSaved = false;
     private string loadMessage = "";
     private string messageClass = "";
@@ -104,29 +132,36 @@
 
     protected override void OnInitialized()
     {
-        serverUrl = AppState.CurrentServerUrl;
         enableReferences = AppState.EnableReferenceResolution;
         resolutionDepth = AppState.ReferenceResolutionDepth;
     }
 
-    private void SaveServerSettings()
-    {
-        AppState.SetServerUrl(serverUrl);
-        serverSaved = true;
-        // Hide success message after 2s
-        _ = Task.Delay(2000).ContinueWith(_ => { serverSaved = false; InvokeAsync(StateHasChanged); });
-    }
-    
     private void SaveReferenceSettings()
     {
         AppState.SetReferenceResolutionSettings(enableReferences, resolutionDepth);
         referenceSaved = true;
-        _ = Task.Delay(2000).ContinueWith(_ => { referenceSaved = false; InvokeAsync(StateHasChanged); });
+        // Reset message after time?
+        Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { referenceSaved = false; StateHasChanged(); }));
     }
 
-    private void ResetServerUrl()
+    private void AddServer()
     {
-        serverUrl = "https://server.fire.ly";
+        if (!string.IsNullOrWhiteSpace(newServerUrl) && !string.IsNullOrWhiteSpace(newServerLabel))
+        {
+            AppState.AddServer(newServerUrl, newServerLabel);
+            newServerUrl = "";
+            newServerLabel = "";
+        }
+    }
+
+    private void RemoveServer(string url)
+    {
+        AppState.RemoveServer(url);
+    }
+
+    private void SetActiveServer(string url)
+    {
+        AppState.SetServerUrl(url);
     }
 
     private async Task LoadDefaultPatient()

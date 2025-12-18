@@ -3,6 +3,7 @@
 @using FauxHR.Modules.ExitStrategy.Services
 @using Hl7.Fhir.Model
 @using Hl7.Fhir.Serialization
+@using System.Text.Json
 @using Task = System.Threading.Tasks.Task
 @using Blazored.LocalStorage
 @inject AppState AppState
@@ -208,52 +209,90 @@
             
             foreach (var key in keys)
             {
-                var parts = key.Split('-');
-                if (parts.Length >= 3)
+                // Basic check to ensure it's likely a resource key (not setting/config)
+                // New format: slug_Type_Id. Old: Type-Id-Date.
+                // We'll rely on being able to parse it as a FHIR resource.
+                
+                var jsonSource = await LocalStorage.GetItemAsStringAsync(key);
+                if (string.IsNullOrWhiteSpace(jsonSource)) continue;
+
+                // Ignore small config values
+                if (jsonSource.Length < 10 || !jsonSource.TrimStart().StartsWith("{")) continue;
+
+                string resourceType = "Unknown";
+                string resourceId = "Unknown";
+                string source = "Unknown";
+                DateTime retrievalDate = DateTime.MinValue;
+                bool isError = false;
+
+                try
                 {
-                    var dateStr = parts[^1];
+                    using var doc = JsonDocument.Parse(jsonSource);
+                    var root = doc.RootElement;
                     
-                    if (dateStr.Length == 8 && int.TryParse(dateStr, out _))
+                    if (root.TryGetProperty("resourceType", out var typeProp))
                     {
-                        var resourceType = parts[0];
-                        var resourceId = string.Join("-", parts.Skip(1).Take(parts.Length - 2));
+                        resourceType = typeProp.GetString() ?? "Unknown";
+                    }
+                    else continue; // Not a FHIR resource
 
-                        var jsonSource = await LocalStorage.GetItemAsStringAsync(key);
-                        if (!string.IsNullOrEmpty(jsonSource))
+                    if (root.TryGetProperty("id", out var idProp))
+                    {
+                        resourceId = idProp.GetString() ?? "Unknown";
+                    }
+
+                    if (root.TryGetProperty("meta", out var meta))
+                    {
+                        if (meta.TryGetProperty("source", out var sourceProp))
                         {
-                            var isError = jsonSource.Contains("\"resourceType\":\"OperationOutcome\"") || 
-                                         jsonSource.Contains("\"resourceType\": \"OperationOutcome\"");
-                            
-                            string source = "Unknown";
-                            try
-                            {
-                                var sourceMatch = System.Text.RegularExpressions.Regex.Match(jsonSource, "\"source\"\\s*:\\s*\"([^\"]+)\"");
-                                if (sourceMatch.Success)
-                                {
-                                    source = sourceMatch.Groups[1].Value;
-                                }
-                            }
-                            catch { }
-
-                            var retrievalDate = DateTime.ParseExact(dateStr, "yyyyMMdd", null);
-                            var resource = new StoredResource
-                            {
-                                TypeName = resourceType,
-                                ResourceId = resourceId,
-                                RetrievalDate = retrievalDate,
-                                Source = source,
-                                JsonSource = jsonSource,
-                                IsError = isError
-                            };
-
-                            if (!groupedResources.ContainsKey(resourceType))
-                            {
-                                groupedResources[resourceType] = new List<StoredResource>();
-                            }
-                            groupedResources[resourceType].Add(resource);
+                            source = sourceProp.GetString() ?? "Unknown";
+                        }
+                        
+                        // Use lastUpdated as "retrieval date" for sorting/grouping, 
+                        // or fallback to a default if missing.
+                        if (meta.TryGetProperty("lastUpdated", out var dateProp) && 
+                            dateProp.TryGetDateTime(out var dt))
+                        {
+                            retrievalDate = dt;
                         }
                     }
+
+                    isError = resourceType == "OperationOutcome";
                 }
+                catch 
+                {
+                    // Fallback to key parsing if JSON fails (legacy support?)
+                    // Or just skip.
+                    continue; 
+                }
+
+                // If date still missing, maybe try key pattern for legacy data
+                if (retrievalDate == DateTime.MinValue)
+                {
+                    var parts = key.Split('-');
+                    if (parts.Length >= 3 && parts[^1].Length == 8 && int.TryParse(parts[^1], out _))
+                    {
+                         DateTime.TryParseExact(parts[^1], "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out retrievalDate);
+                    }
+                    
+                    if (retrievalDate == DateTime.MinValue) retrievalDate = DateTime.Now; // Final fallback
+                }
+
+                var resource = new StoredResource
+                {
+                    TypeName = resourceType,
+                    ResourceId = resourceId,
+                    RetrievalDate = retrievalDate,
+                    Source = source,
+                    JsonSource = jsonSource,
+                    IsError = isError
+                };
+
+                if (!groupedResources.ContainsKey(resourceType))
+                {
+                    groupedResources[resourceType] = new List<StoredResource>();
+                }
+                groupedResources[resourceType].Add(resource);
             }
             
             // Build source summary
