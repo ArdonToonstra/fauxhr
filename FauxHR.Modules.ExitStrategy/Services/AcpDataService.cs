@@ -199,7 +199,6 @@ public class AcpDataService
 
         try
         {
-            // Get all currently stored keys to avoid re-fetching
             var existingKeys = await _localStorage.KeysAsync();
             var fetchedResources = new List<Hl7.Fhir.Model.Resource>();
             var allEntries = new List<Bundle.EntryComponent>();
@@ -233,7 +232,6 @@ public class AcpDataService
                     
                     try
                     {
-                        // Parse reference to get resource type and ID
                         var parts = refUrl.Split('/');
                         if (parts.Length < 2) continue;
                         
@@ -244,7 +242,7 @@ public class AcpDataService
                         var keyPattern = $"{resourceType}-{resourceId}";
                         if (existingKeys.Any(k => k.StartsWith(keyPattern)))
                         {
-                            continue; // Already have it
+                            continue;
                         }
                         
                         // Fetch the resource
@@ -276,7 +274,7 @@ public class AcpDataService
                             allEntries.Add(new Bundle.EntryComponent { Resource = resource });
                             fetchedResources.Add(resource);
                             
-                            // Extract references from this newly fetched resource (second-level)
+                            // Extract references from this newly fetched resource
                             ExtractReferences(resource, referencedUrls);
                         }
                     }
@@ -305,7 +303,6 @@ public class AcpDataService
 
     private void ExtractReferences(Hl7.Fhir.Model.Resource resource, HashSet<string> references)
     {
-        // Extract common reference patterns from FHIR resources
         if (resource is Procedure procedure)
         {
             AddReference(procedure.Encounter?.Reference, references);
@@ -341,21 +338,32 @@ public class AcpDataService
         }
         else if (resource is PractitionerRole practitionerRole)
         {
-            // Second-level references from PractitionerRole
             AddReference(practitionerRole.Practitioner?.Reference, references);
             AddReference(practitionerRole.Organization?.Reference, references);
         }
-        // Can add more resource types as needed
     }
 
     private void AddReference(string? reference, HashSet<string> references)
     {
         if (string.IsNullOrEmpty(reference)) return;
         
-        // Only add relative references (not absolute URLs to external servers)
-        if (!reference.StartsWith("http://") && !reference.StartsWith("https://"))
+        // Handle both relative and absolute references
+        string normalizedRef = reference;
+        
+        // If it's an absolute URL pointing to the current server, make it relative
+        if (reference.StartsWith(_appState.CurrentServerUrl))
         {
-            references.Add(reference);
+            normalizedRef = reference.Substring(_appState.CurrentServerUrl.Length).TrimStart('/');
+        }
+        else if (reference.StartsWith("http://") || reference.StartsWith("https://"))
+        {
+            // It's an absolute URL to a different server - skip it
+            return;
+        }
+        
+        if (!string.IsNullOrEmpty(normalizedRef))
+        {
+            references.Add(normalizedRef);
         }
     }
 }
