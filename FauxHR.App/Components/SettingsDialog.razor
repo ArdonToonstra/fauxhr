@@ -1,0 +1,101 @@
+@using FauxHR.Core.Services
+@using FauxHR.Core.Interfaces
+@inject AppState AppState
+@inject IFhirService FhirService
+
+@if (Show)
+{
+    <div class="settings-overlay">
+        <div class="settings-dialog">
+            <h3>Settings</h3>
+            
+            <div class="form-group">
+                <label>FHIR Server URL</label>
+                <input type="text" @bind="serverUrl" class="form-control" />
+                <button class="btn btn-sm btn-outline-secondary mt-1" @onclick="ResetServerUrl">Reset to Default</button>
+            </div>
+
+            <div class="form-group mt-3">
+                <label>Debug</label>
+                <button class="btn btn-primary w-100" @onclick="LoadDefaultPatient" disabled="@isLoading">
+                    @if(isLoading) { <span>Loading...</span> } else { <span>Load Hendrik Hartman</span> }
+                </button>
+                @if (!string.IsNullOrEmpty(loadMessage))
+                {
+                    <small class="@messageClass">@loadMessage</small>
+                }
+            </div>
+
+            <div class="actions mt-4 text-end">
+                 <button class="btn btn-secondary" @onclick="Close">Close</button>
+                 <button class="btn btn-success" @onclick="Save">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    public bool Show { get; private set; }
+    
+    private string serverUrl = "";
+    private bool isLoading = false;
+    private string loadMessage = "";
+    private string messageClass = "";
+
+    public void Open()
+    {
+        serverUrl = AppState.CurrentServerUrl;
+        Show = true;
+        loadMessage = "";
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        Show = false;
+        StateHasChanged();
+    }
+
+    private void Save()
+    {
+        AppState.SetServerUrl(serverUrl);
+        Close();
+    }
+
+    private void ResetServerUrl()
+    {
+        serverUrl = "https://server.fire.ly";
+    }
+
+    private async Task LoadDefaultPatient()
+    {
+        isLoading = true;
+        loadMessage = "";
+        try
+        {
+            // Try to find Hendrik Hartman: 999911120 | http://fhir.nl/fhir/NamingSystem/bsn
+            var patient = await FhirService.SearchPatientByIdentifierAsync("http://fhir.nl/fhir/NamingSystem/bsn", "999911120");
+            
+            if (patient != null)
+            {
+                AppState.SetPatient(patient);
+                loadMessage = "Patient loaded!";
+                messageClass = "text-success";
+            }
+            else
+            {
+                loadMessage = "Patient not found on this server.";
+                messageClass = "text-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            loadMessage = $"Error: {ex.Message}";
+            messageClass = "text-danger";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

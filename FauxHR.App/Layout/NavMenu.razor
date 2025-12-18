@@ -1,0 +1,53 @@
+﻿@using FauxHR.Core.Interfaces
+@inject IEnumerable<IIGModule> Modules
+
+<div class="nav-header ps-4 navbar navbar-light">
+    <div class="container-fluid p-0">
+        <a class="navbar-brand d-flex align-items-center" href="">
+            <img src="images/logo.png" alt="FauxHR" height="45" />
+        </a>
+        <button title="Navigation menu" class="navbar-toggler me-3" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable bg-white" @onclick="ToggleNavMenu">
+    <nav class="flex-column pt-3">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link text-dark" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-grid-fill me-3" aria-hidden="true"></span> Dashboard
+            </NavLink>
+        </div>
+        
+        <div class="nav-item px-3 mt-4 mb-2">
+            <span class="text-secondary text-uppercase small fw-bold px-3">Components</span>
+        </div>
+
+         @foreach (var module in Modules)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link text-dark" href="@module.EntryPath">
+                    <span class="@module.IconClass me-3" aria-hidden="true"></span> @module.Title
+                </NavLink>
+            </div>
+        }
+
+        <div class="nav-item px-3 mt-auto border-top pt-3">
+             <NavLink class="nav-link text-muted" href="settings">
+                <span class="bi bi-gear me-3" aria-hidden="true"></span> Settings
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

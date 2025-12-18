@@ -1,0 +1,117 @@
+@page "/settings"
+@using FauxHR.Core.Services
+@using FauxHR.Core.Interfaces
+@inject AppState AppState
+@inject IFhirService FhirService
+
+<PageTitle>FauxHR - Settings</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="fw-light">Settings</h2>
+            <p class="text-muted">Configure your environment.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">FHIR Server</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Server URL</label>
+                        <div class="input-group">
+                             <input type="text" @bind="serverUrl" class="form-control" />
+                             <button class="btn btn-outline-secondary" @onclick="ResetServerUrl">Default</button>
+                        </div>
+                        <div class="form-text">Point to a valid FHIR R4 server.</div>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SaveServerSettings">Save Configuration</button>
+                     @if (serverSaved)
+                    {
+                        <span class="text-success ms-2 fade-in">Saved!</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Debug Tools</h5>
+                    <p class="card-text">Quickly load test data.</p>
+                    
+                    <button class="btn btn-outline-primary mb-2" @onclick="LoadDefaultPatient" disabled="@isLoading">
+                        @if(isLoading) { <span>Loading...</span> } else { <span>Load "Hendrik Hartman"</span> }
+                    </button>
+                    
+                    @if (!string.IsNullOrEmpty(loadMessage))
+                    {
+                        <div class="mt-2 text-small @messageClass">
+                            @loadMessage
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string serverUrl = "";
+    private bool isLoading = false;
+    private bool serverSaved = false;
+    private string loadMessage = "";
+    private string messageClass = "";
+
+    protected override void OnInitialized()
+    {
+        serverUrl = AppState.CurrentServerUrl;
+    }
+
+    private void SaveServerSettings()
+    {
+        AppState.SetServerUrl(serverUrl);
+        serverSaved = true;
+        // Hide success message after 2s
+        _ = Task.Delay(2000).ContinueWith(_ => { serverSaved = false; InvokeAsync(StateHasChanged); });
+    }
+
+    private void ResetServerUrl()
+    {
+        serverUrl = "https://server.fire.ly";
+    }
+
+    private async Task LoadDefaultPatient()
+    {
+        isLoading = true;
+        loadMessage = "";
+        try
+        {
+            // Try to find Hendrik Hartman: 999911120 | http://fhir.nl/fhir/NamingSystem/bsn
+            var patient = await FhirService.SearchPatientByIdentifierAsync("http://fhir.nl/fhir/NamingSystem/bsn", "999911120");
+            
+            if (patient != null)
+            {
+                AppState.SetPatient(patient);
+                loadMessage = "Patient loaded successfully!";
+                messageClass = "text-success";
+            }
+            else
+            {
+                loadMessage = "Patient not found on this server.";
+                messageClass = "text-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            loadMessage = $"Error: {ex.Message}";
+            messageClass = "text-danger";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

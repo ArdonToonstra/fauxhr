@@ -1,0 +1,58 @@
+@using FauxHR.Core.Services
+@using Hl7.Fhir.Model
+@inject AppState AppState
+@inject NavigationManager NavManager
+@implements IDisposable
+
+<div class="patient-status cursor-pointer" @onclick="GoToHome" title="@(CurrentPatient != null ? "Switch Patient" : "Select Patient")">
+    @if (CurrentPatient != null)
+    {
+        <div class="d-flex align-items-center gap-2 text-primary fade-in">
+            <div class="text-end lh-1">
+                <div class="fw-bold small">@GetPatientName(CurrentPatient)</div>
+                <div class="text-xs text-muted">@CurrentPatient.Id</div>
+            </div>
+            <div class="status-icon bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-person-fill fs-5"></i>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex align-items-center gap-2 text-secondary fade-in">
+            <div class="text-end lh-1 d-none d-sm-block">
+                <div class="fw-bold small">No Patient</div>
+                <div class="text-xs text-muted">Select Context</div>
+            </div>
+            <div class="status-icon bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-person-exclamation fs-5"></i>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private Patient? CurrentPatient => AppState.CurrentPatient;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+
+    private void GoToHome()
+    {
+        NavManager.NavigateTo("/");
+    }
+
+    private string GetPatientName(Patient p)
+    {
+        if (p.Name == null || !p.Name.Any()) return "Unknown";
+        var name = p.Name.First();
+        return $"{name.Given.FirstOrDefault()} {name.Family}";
+    }
+}
