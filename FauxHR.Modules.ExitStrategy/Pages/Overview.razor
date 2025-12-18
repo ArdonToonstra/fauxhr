@@ -32,6 +32,9 @@
                     }
                     Pull Latest Info
                 </button>
+                <button class="btn btn-outline-primary btn-lg ms-2" @onclick='() => Navigation.NavigateTo("/acp/resources")'>
+                    <i class="bi bi-database me-2"></i>View All Resources
+                </button>
             }
         </div>
     </div>
@@ -57,7 +60,8 @@
                         @foreach(var q in queries)
                         {
                             <div class="col-md-6 col-lg-3">
-                                <div class="d-flex align-items-center p-2 border rounded @GetStatusClass(q)">
+                                <div class="d-flex align-items-center p-2 border rounded @GetStatusClass(q) @(q.Status == QueryStatus.Error ? "cursor-pointer" : "")" 
+                                     @onclick="() => { if(q.Status == QueryStatus.Error) ShowErrorDetails(q); }">
                                     <div class="me-3">@GetStatusIcon(q)</div>
                                     <div class="text-truncate">
                                         <div class="fw-bold small">@q.Title</div>
@@ -83,11 +87,13 @@
                          <div class="row g-3">
                             @foreach(var entry in q.Result!.Entry)
                             {
-                                <div class="col-md-6 col-lg-4">
-                                     <div class="card h-100 shadow-sm border-0 bg-light">
-                                        <div class="card-body">
-                                            <span class="badge bg-secondary mb-2">@entry.Resource.TypeName</span>
-                                            <h6 class="card-title">@entry.Resource.Id</h6>
+                                @if (entry.Resource != null)
+                                {
+                                    <div class="col-md-6 col-lg-4">
+                                         <div class="card h-100 shadow-sm border-0 bg-light">
+                                            <div class="card-body">
+                                                <span class="badge bg-secondary mb-2">@entry.Resource.TypeName</span>
+                                                <h6 class="card-title">@entry.Resource.Id</h6>
                                             <div class="small text-muted text-truncate">
                                                 <!-- Simple dump for now, specialized rendering later -->
                                                 Resource: @entry.Resource.TypeName
@@ -97,9 +103,10 @@
                                                     <i class="bi bi-code-slash me-1"></i> View Source
                                                 </button>
                                             </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                }
                             }
                         </div>
                         <hr class="my-4 text-muted opacity-25" />
@@ -120,8 +127,8 @@
                     <h5 class="modal-title">Resource Source</h5>
                     <button type="button" class="btn-close" @onclick="CloseSourceModal"></button>
                 </div>
-                <div class="modal-body bg-light">
-                    <pre class="small"><code>@selectedResourceJson</code></pre>
+                <div class="modal-body p-0">
+                    <pre class="m-0 p-3 bg-dark text-light" style="font-size: 0.85rem; line-height: 1.4;"><code>@selectedResourceJson</code></pre>
                 </div>
                  <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseSourceModal">Close</button>
@@ -132,6 +139,9 @@
 }
 
 @code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private Blazored.LocalStorage.ILocalStorageService LocalStorage { get; set; } = default!;
+    
     private List<AcpQuery>? queries;
     private bool isLoading = false;
     
@@ -139,10 +149,67 @@
     private bool showSourceModal = false;
     private string? selectedResourceJson;
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.CurrentPatient != null)
+        {
+            await LoadFromLocalStorage();
+        }
+    }
+
+    private async Task LoadFromLocalStorage()
+    {
+        try
+        {
+            if (AppState.CurrentPatient == null) return;
+            
+            queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
+            
+            var keys = await LocalStorage.KeysAsync();
+            
+            foreach (var query in queries)
+            {
+                // Check if we have any resources for this query in LocalStorage
+                var relevantKeys = keys.Where(k => k.StartsWith($"{query.ResourceType}-")).ToList();
+                
+                if (relevantKeys.Any())
+                {
+                    // Mark as success and set a fake bundle with count
+                    query.Status = QueryStatus.Success;
+                    query.Result = new Bundle 
+                    { 
+                        Total = relevantKeys.Count,
+                        Entry = new List<Bundle.EntryComponent>()
+                    };
+                }
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading from storage: {ex.Message}");
+        }
+    }
+
     private void ViewSource(Hl7.Fhir.Model.Resource resource)
     {
         var serializer = new FhirJsonSerializer();
-        selectedResourceJson = serializer.SerializeToString(resource);
+        var rawJson = serializer.SerializeToString(resource);
+        
+        // Pretty-print the JSON using System.Text.Json
+        try
+        {
+            var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
+            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+            selectedResourceJson = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
+        }
+        catch
+        {
+            // If formatting fails, use raw JSON
+            selectedResourceJson = rawJson;
+        }
+        
         showSourceModal = true;
     }
 
@@ -150,6 +217,18 @@
     {
         showSourceModal = false;
         selectedResourceJson = null;
+    }
+    
+    private void ShowErrorDetails(AcpQuery query)
+    {
+        if (query.Result?.Entry != null && query.Result.Entry.Any())
+        {
+            var errorResource = query.Result.Entry.FirstOrDefault(e => e.Resource is OperationOutcome);
+            if (errorResource?.Resource != null)
+            {
+                ViewSource(errorResource.Resource);
+            }
+        }
     }
     
     // ... existing helpers ...
@@ -184,9 +263,20 @@
 
     private async Task PullLatestInfo()
     {
-        if (AppState.CurrentPatient == null) return;
+        if (AppState.CurrentPatient?.Id == null) return;
         
         isLoading = true;
+        
+        // Clear existing data from LocalStorage before pulling fresh data
+        try
+        {
+            await LocalStorage.ClearAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error clearing storage: {ex.Message}");
+        }
+        
         queries = AcpService.GetQueries(AppState.CurrentPatient.Id);
         StateHasChanged();
 

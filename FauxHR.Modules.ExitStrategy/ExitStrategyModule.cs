@@ -18,17 +18,5 @@ public class ExitStrategyModule : IIGModule
             Url = "acp/overview",
             IconClass = "bi bi-journal-medical"
         };
-        yield return new NavigationItem 
-        { 
-            Title = "Directives", 
-            Url = "acp/directives",
-            IconClass = "bi bi-clipboard-check"
-        };
-        yield return new NavigationItem 
-        { 
-            Title = "Goals", 
-            Url = "acp/goals",
-            IconClass = "bi bi-flag"
-        };
     }
 }

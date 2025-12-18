@@ -1,0 +1,327 @@
+@page "/acp/resources"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.ExitStrategy.Services
+@using Hl7.Fhir.Model
+@using Hl7.Fhir.Serialization
+@using Task = System.Threading.Tasks.Task
+@using Blazored.LocalStorage
+@inject AppState AppState
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>ACP Resources</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-primary mb-1">
+                <i class="bi bi-database me-3"></i>Stored Resources
+            </h2>
+            <p class="lead text-muted mb-0">All retrieved ACP data grouped by resource type.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-danger" @onclick="ClearCache">
+                <i class="bi bi-trash me-2"></i>Clear Cache
+            </button>
+            <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("/acp/overview")'>
+                <i class="bi bi-arrow-left me-2"></i>Back to Overview
+            </button>
+        </div>
+    </div>
+
+    <!-- Sources Summary -->
+    @if (sourceSummary.Any())
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom-0 pt-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="fw-normal mb-0">Data Sources</h5>
+                    @if (!string.IsNullOrEmpty(selectedSourceFilter))
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => selectedSourceFilter = string.Empty">
+                            <i class="bi bi-x-circle me-1"></i>Clear Filter
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    @foreach (var source in sourceSummary.OrderByDescending(s => s.Date))
+                    {
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center p-2 rounded cursor-pointer @(selectedSourceFilter == GetSourceKey(source) ? "bg-primary-subtle border border-primary" : "bg-light")" 
+                                 @onclick="() => FilterBySource(source)">
+                                <i class="bi bi-server text-primary me-2"></i>
+                                <div class="flex-fill">
+                                    <div class="fw-bold small">@source.Source</div>
+                                    <div class="text-xs text-muted">Retrieved: @source.Date.ToString("yyyy-MM-dd")</div>
+                                </div>
+                                <span class="badge bg-secondary">@source.Count resources</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (AppState.CurrentPatient == null)
+    {
+        <div class="alert alert-warning shadow-sm border-0">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Please select a patient from the Dashboard to view resources.
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading resources...</p>
+        </div>
+    }
+    else if (groupedResources.Any())
+    {
+        @foreach (var group in GetFilteredResources().OrderBy(g => g.Key))
+        {
+            <div class="mb-5">
+                <h3 class="fw-light mb-3">
+                    <span class="badge bg-primary">@group.Value.Count</span>
+                    @group.Key
+                </h3>
+                <div class="row g-3">
+                    @foreach (var item in group.Value.OrderByDescending(r => r.RetrievalDate))
+                    {
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 shadow-sm border-0 @(item.IsError ? "border-danger" : "")">
+                                <div class="card-body">
+                                    <span class="badge @(item.IsError ? "bg-danger" : "bg-secondary") mb-2">@item.TypeName</span>
+                                    <h6 class="card-title">@item.ResourceId</h6>
+                                    <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="() => ViewSource(item)">
+                                        <i class="bi bi-code-slash me-1"></i> View Source
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <hr class="my-4 text-muted opacity-25" />
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info shadow-sm border-0">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            No resources found. Return to the Overview page and click "Pull Latest Info" to retrieve data.
+        </div>
+    }
+</div>
+
+<!-- Enhanced Source Viewer Modal -->
+@if (showSourceModal && selectedResource != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.7);">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header @(selectedResource.IsError ? "bg-danger text-white" : "")">
+                    <h5 class="modal-title">
+                        @(selectedResource.IsError ? "Error: " : "")@selectedResource.TypeName - @selectedResource.ResourceId
+                    </h5>
+                    <button type="button" class="btn-close @(selectedResource.IsError ? "btn-close-white" : "")" @onclick="CloseSourceModal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <pre class="m-0 p-3 bg-dark text-light" style="font-size: 0.85rem; line-height: 1.4;"><code>@selectedResource.JsonSource</code></pre>
+                </div>
+                <div class="modal-footer">
+                    <div class="me-auto small text-muted">
+                        <i class="bi bi-calendar me-1"></i>Retrieved: @selectedResource.RetrievalDate.ToString("yyyy-MM-dd HH:mm")
+                        <span class="mx-2">|</span>
+                        <i class="bi bi-server me-1"></i>@selectedResource.Source
+                    </div>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseSourceModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private Dictionary<string, List<StoredResource>> groupedResources = new();
+    private List<SourceSummary> sourceSummary = new();
+    private string selectedSourceFilter = string.Empty;
+    
+    // Modal state
+    private bool showSourceModal = false;
+    private StoredResource? selectedResource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadResourcesFromStorage();
+    }
+
+    private Dictionary<string, List<StoredResource>> GetFilteredResources()
+    {
+        if (string.IsNullOrEmpty(selectedSourceFilter))
+        {
+            return groupedResources;
+        }
+
+        var filtered = new Dictionary<string, List<StoredResource>>();
+        foreach (var group in groupedResources)
+        {
+            var filteredList = group.Value
+                .Where(r => GetSourceKey(r.Source, r.RetrievalDate.Date) == selectedSourceFilter)
+                .ToList();
+            
+            if (filteredList.Any())
+            {
+                filtered[group.Key] = filteredList;
+            }
+        }
+        return filtered;
+    }
+
+    private void FilterBySource(SourceSummary source)
+    {
+        var key = GetSourceKey(source);
+        selectedSourceFilter = selectedSourceFilter == key ? string.Empty : key;
+    }
+
+    private string GetSourceKey(SourceSummary source) => GetSourceKey(source.Source, source.Date);
+    
+    private string GetSourceKey(string source, DateTime date) => $"{source}|{date:yyyyMMdd}";
+
+    private async Task LoadResourcesFromStorage()
+    {
+        isLoading = true;
+        groupedResources.Clear();
+        sourceSummary.Clear();
+
+        try
+        {
+            var keys = await LocalStorage.KeysAsync();
+            
+            foreach (var key in keys)
+            {
+                var parts = key.Split('-');
+                if (parts.Length >= 3)
+                {
+                    var dateStr = parts[^1];
+                    
+                    if (dateStr.Length == 8 && int.TryParse(dateStr, out _))
+                    {
+                        var resourceType = parts[0];
+                        var resourceId = string.Join("-", parts.Skip(1).Take(parts.Length - 2));
+
+                        var jsonSource = await LocalStorage.GetItemAsStringAsync(key);
+                        if (!string.IsNullOrEmpty(jsonSource))
+                        {
+                            var isError = jsonSource.Contains("\"resourceType\":\"OperationOutcome\"") || 
+                                         jsonSource.Contains("\"resourceType\": \"OperationOutcome\"");
+                            
+                            string source = "Unknown";
+                            try
+                            {
+                                var sourceMatch = System.Text.RegularExpressions.Regex.Match(jsonSource, "\"source\"\\s*:\\s*\"([^\"]+)\"");
+                                if (sourceMatch.Success)
+                                {
+                                    source = sourceMatch.Groups[1].Value;
+                                }
+                            }
+                            catch { }
+
+                            var retrievalDate = DateTime.ParseExact(dateStr, "yyyyMMdd", null);
+                            var resource = new StoredResource
+                            {
+                                TypeName = resourceType,
+                                ResourceId = resourceId,
+                                RetrievalDate = retrievalDate,
+                                Source = source,
+                                JsonSource = jsonSource,
+                                IsError = isError
+                            };
+
+                            if (!groupedResources.ContainsKey(resourceType))
+                            {
+                                groupedResources[resourceType] = new List<StoredResource>();
+                            }
+                            groupedResources[resourceType].Add(resource);
+                        }
+                    }
+                }
+            }
+            
+            // Build source summary
+            var sources = groupedResources
+                .SelectMany(g => g.Value)
+                .GroupBy(r => new { r.Source, Date = r.RetrievalDate.Date })
+                .Select(g => new SourceSummary 
+                { 
+                    Source = g.Key.Source, 
+                    Date = g.Key.Date,
+                    Count = g.Count() 
+                })
+                .ToList();
+            
+            sourceSummary = sources;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading resources: {ex.Message}");
+        }
+
+        isLoading = false;
+    }
+
+    private async Task ClearCache()
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to clear all cached resources? This cannot be undone."))
+        {
+            try
+            {
+                await LocalStorage.ClearAsync();
+                selectedSourceFilter = string.Empty;
+                await LoadResourcesFromStorage();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing cache: {ex.Message}");
+            }
+        }
+    }
+
+    private void ViewSource(StoredResource resource)
+    {
+        selectedResource = resource;
+        showSourceModal = true;
+    }
+
+    private void CloseSourceModal()
+    {
+        showSourceModal = false;
+        selectedResource = null;
+    }
+
+    private class StoredResource
+    {
+        public string TypeName { get; set; } = string.Empty;
+        public string ResourceId { get; set; } = string.Empty;
+        public DateTime RetrievalDate { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public string JsonSource { get; set; } = string.Empty;
+        public bool IsError { get; set; }
+    }
+    
+    private class SourceSummary
+    {
+        public string Source { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public int Count { get; set; }
+    }
+}
