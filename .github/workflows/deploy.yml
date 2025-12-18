@@ -22,7 +22,10 @@ jobs:
       - name: Publish
         # Publishes the app to the 'release' folder.
         # Ensure the base-href matches your repository name (e.g. /fauxhr/)
-        run: dotnet publish FauxHR.App/FauxHR.App.csproj -c Release -o release --nologo --base-href /fauxhr/
+        run: dotnet publish FauxHR.App/FauxHR.App.csproj -c Release -o release --nologo
+
+      - name: Update Base Href
+        run: sed -i 's/<base href="\/" \/>/<base href="\/fauxhr\/" \/>/g' release/wwwroot/index.html
 
       - name: Copy index.html to 404.html
         run: cp release/wwwroot/index.html release/wwwroot/404.html
