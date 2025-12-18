@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "FauxHR.App",
   "resources": {
-    "hash": "sha256-J2X1LiAESSvoDxL839oF7On4SAav0tsBJN/9a8GzXXw=",
+    "hash": "sha256-tmUZv0XtvFs1s54I8mONV5j7kq7N3n8ROxoxb9qVx3o=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -88,10 +88,10 @@
       "System.Xml.XPath.XDocument.wasm": "sha256-izy8aj8kbD39GieHGtpxh/xJ0WAm+U3yLDZevkHGkF8=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "System.Private.CoreLib.wasm": "sha256-6BxXSwCLCBuNmF9vhBofTc8W+ZWAg8q4Lu4AosItlSo=",
-      "FauxHR.Core.wasm": "sha256-PKDeVxH1KEQgWkVmtdz9rL3KE46jgoj5bxF3PgNyDsA=",
-      "FauxHR.MockData.wasm": "sha256-2Tb1vgYvFzb6Rt//244i81dZ7wKEvFltcWtmuZQ+HnQ=",
-      "FauxHR.Modules.ExitStrategy.wasm": "sha256-VE0Yd59u+aCYsfIC8QlSu2CpT2ti7n5Yg5wXv/TinH0=",
-      "FauxHR.App.wasm": "sha256-JCT27xBMm/rA2z5lrs/Sw6QzH6MGhuLMuSHhkOz0C+4="
+      "FauxHR.Core.wasm": "sha256-6G+JN8Uo4v4VvxeLEhBfz0ydR+z09qUhQC4WSATxFTk=",
+      "FauxHR.MockData.wasm": "sha256-XC0i5c0o6rtRRTo/Zkmyyi9b7Hpwq7RhFGjSO8Jj6EU=",
+      "FauxHR.Modules.ExitStrategy.wasm": "sha256-E0FnHnE/ZcrQ6EDJJi1uMuVUcjF5bMNvs+iR7gjUo1I=",
+      "FauxHR.App.wasm": "sha256-yE84ThG5U3df9ZHQ4LdBQKLT25cAB/2U3QT0epffF84="
     }
   },
   "cacheBootResources": true,
