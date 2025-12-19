@@ -12,6 +12,14 @@ public class AcpEncounterViewModel
     public List<Observation> Observations { get; set; } = new();
 }
 
+public class TreatmentDirectiveViewModel
+{
+    public string Title { get; set; } = "Onbekend";
+    public DateTime? Date { get; set; }
+    public Consent Consent { get; set; } = new();
+    public string? SpecificationOther { get; set; }
+}
+
 public record ParticipantInfo(string Display, string Reference, bool IsPractitioner, string? Role);
 
 public class ParticipantDetail 
