@@ -1,6 +1,8 @@
 @page "/acp/integrated"
 @using FauxHR.Core.Services
 @using FauxHR.Modules.ExitStrategy.Services
+@using FauxHR.Modules.ExitStrategy.Models
+@using FauxHR.Modules.ExitStrategy.Components
 @using Hl7.Fhir.Model
 @using Hl7.Fhir.Serialization
 @using Task = System.Threading.Tasks.Task
@@ -20,10 +22,10 @@
             <h2 class="display-6 fw-bold text-primary mb-1">
                 <i class="bi bi-file-earmark-text me-3"></i>Uniform Advance Care Planning
             </h2>
-            <p class="lead text-muted mb-0">Proactieve zorgplanning (ACP)</p>
+            <p class="lead text-muted mb-0">Proactieve zorgplanning (ACP) - Integraal Overzicht</p>
         </div>
         <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("acp/overview")'>
-            <i class="bi bi-arrow-left me-2"></i>Back to Overview
+            <i class="bi bi-arrow-left me-2"></i>Terug naar overzicht
         </button>
     </div>
 
@@ -31,130 +33,146 @@
     {
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            Please select a patient from the Dashboard.
+            Geen patiënt geselecteerd. Selecteer een patiënt op het Dashboard.
         </div>
     }
     else if (isLoading)
     {
         <div class="text-center py-5">
-            <div class="spinner-border text-primary"></div>
-            <p class="mt-3">Loading ACP data...</p>
-        </div>
-    }
-    else if (acpData == null)
-    {
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>
-            No ACP data found. Please return to Overview and pull the latest information.
+            <div class="loading-progress">
+                <svg>
+                    <circle r="40%" cx="50%" cy="50%" />
+                    <circle r="40%" cx="50%" cy="50%" />
+                </svg>
+            </div>
+            <p class="mt-3 text-muted">ACP dossiers laden...</p>
         </div>
     }
     else
     {
-        <!-- Main Form Card -->
-        <div class="card border-0 shadow-sm">
+        <!-- Patient Header Info -->
+        <div class="card border-0 shadow-sm mb-5 bg-white">
             <div class="card-body p-4">
-                <!-- Patient & Encounter Header -->
-                <div class="row mb-4">
-                    <div class="col-md-8">
-                        <div class="mb-3">
-                            <label class="text-muted small">Naam patiënt</label>
-                            <div class="fw-bold fs-5">@GetPatientName()</div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="text-muted small">Geboortedatum</label>
-                                <div>@GetPatientBirthDate()</div>
+                <div class="row">
+                    <div class="col-md-4">
+                         <div class="d-flex align-items-center mb-3 h-100">
+                            <div class="bg-primary-subtle text-primary rounded-circle p-3 me-3">
+                                <i class="bi bi-person-vcard fs-4"></i>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="text-muted small">Datum van invullen</label>
-                                <div>@GetEncounterDate()</div>
+                            <div>
+                                <h5 class="mb-0 fw-bold">@GetPatientName()</h5>
+                                <div class="text-muted small">Patiënt</div>
                             </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="text-muted small d-block mb-1">Gesprek gevoerd door</label>
-                            @{
-                                var participants = GetParticipants();
-                                if (participants.Any())
-                                {
-                                    <div class="d-flex flex-wrap gap-2">
-                                        @foreach (var p in participants)
-                                        {
-                                            <button class="btn btn-outline-primary btn-sm rounded-pill" @onclick="() => ShowParticipantDetails(p)">
-                                                <i class="bi bi-person me-1"></i>@p.Display
-                                            </button>
-                                        }
-                                    </div>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">-</span>
-                                }
-                            }
                         </div>
                     </div>
                     
-                    <!-- Legally Capable Indicator -->
                     <div class="col-md-4">
-                        <div class="border rounded p-3 @GetLegallyCapableClass()">
-                            <div class="small text-muted mb-2">Wilsbekwaamheid</div>
+                        <!-- Primary Goal -->
+                         <div class="border rounded p-3 h-100 cursor-pointer hover-bg-light position-relative" @onclick="ShowGoalHistory">
                             <div class="d-flex align-items-center">
-                                <i class="@GetLegallyCapableIcon() me-2 fs-4"></i>
-                                <div>
-                                    <div class="fw-bold">@GetLegallyCapableText()</div>
-                                    @if (!string.IsNullOrEmpty(GetLegallyCapableComment()))
-                                    {
-                                        <small class="text-muted">@GetLegallyCapableComment()</small>
-                                    }
+                                <div class="bg-info-subtle text-info-emphasis rounded-circle p-3 me-3">
+                                    <i class="bi bi-flag fs-4"></i>
                                 </div>
+                                <div>
+                                    <div class="fw-bold">
+                                        @(latestGoal?.Description?.Coding?.FirstOrDefault()?.Display ?? latestGoal?.Description?.Text ?? "Geen doel bekend")
+                                    </div>
+                                    @if (latestGoal != null)
+                                    {
+                                         <small class="text-muted d-block mt-1">
+                                             @(!string.IsNullOrEmpty(latestGoal.StatusDate) ? DateTime.Parse(latestGoal.StatusDate).ToString("d MMM yyyy") : "-")
+                                         </small>
+                                    }
+                                    <div class="small text-muted mt-1">Behandeldoel</div>
+                                </div>
+                                <i class="bi bi-chevron-right position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                     <div class="col-md-4">
+                        <!-- Legally Capable Indicator -->
+                        <div class="border rounded p-3 @GetLegallyCapableClass() h-100 d-flex align-items-center">
+                            <i class="@GetLegallyCapableIcon() me-3 fs-3"></i>
+                            <div>
+                                <div class="fw-bold">@GetLegallyCapableText()</div>
+                                @if (!string.IsNullOrEmpty(GetLegallyCapableComment()))
+                                {
+                                    <small class="text-muted d-block mt-1">@GetLegallyCapableComment()</small>
+                                }
+                                <div class="small text-muted mt-1">Wilsbekwaamheid</div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <hr class="my-4" />
-
-                <!-- QuestionnaireResponses Section -->
-                @if (questionnaireResponses.Any())
-                {
-                    <div class="mb-4">
-                        <h5 class="mb-3">
-                            <i class="bi bi-clipboard-data me-2"></i>ACP Formulieren
-                        </h5>
-                        <div class="list-group">
-                            @foreach (var qr in questionnaireResponses.OrderByDescending(q => GetQuestionnaireResponseDate(q)))
-                            {
-                                <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                                        @onclick="() => ShowQuestionnaireResponse(qr)">
-                                    <div>
-                                        <div class="fw-bold">@(qr.Authored ?? qr.Id ?? "Unnamed Questionnaire")</div>
-                                        <small class="text-muted">
-                                            <i class="bi bi-calendar3 me-1"></i>@GetQuestionnaireResponseDate(qr)
-                                            @if (!string.IsNullOrEmpty(qr.Author?.Display))
-                                            {
-                                                <span class="ms-3">
-                                                    <i class="bi bi-person me-1"></i>@qr.Author.Display
-                                                </span>
-                                            }
-                                        </small>
-                                    </div>
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        No questionnaire responses found.
-                    </div>
-                }
             </div>
         </div>
+
+        @if (!acpEncounters.Any())
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Geen ACP gesprekken gevonden voor deze patiënt.
+            </div>
+        }
+        else
+        {
+             <!-- Timeline / Encounter List -->
+            <div class="acp-timeline">
+                @foreach (var encounterModel in acpEncounters.OrderByDescending(e => e.Date))
+                {
+                    <AcpEncounterCard Model="@encounterModel" 
+                                      OnShowParticipant="ShowParticipantDetails" 
+                                      OnShowQuestionnaire="ShowQuestionnaireResponse" />
+                }
+            </div>
+        }
     }
 </div>
+
+<!-- Goal History Modal -->
+@if (showGoalHistory)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+         <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Geschiedenis Behandeldoelen</h5>
+                    <button type="button" class="btn-close" @onclick="CloseGoalHistory"></button>
+                </div>
+                <div class="modal-body p-0">
+                    @if (patientGoals.Any())
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach(var goal in patientGoals.OrderByDescending(g => g.StatusDate))
+                            {
+                                <li class="list-group-item p-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div class="fw-bold">
+                                                @(goal.Description?.Coding?.FirstOrDefault()?.Display ?? goal.Description?.Text ?? "Onbekend doel")
+                                            </div>
+                                            <div class="small text-muted mt-1">
+                                                <i class="bi bi-activity me-1"></i>Status: @(goal.LifecycleStatus?.ToString() ?? "-")
+                                            </div>
+                                        </div>
+                                        <div class="text-end text-muted small">
+                                            @(!string.IsNullOrEmpty(goal.StatusDate) ? DateTime.Parse(goal.StatusDate).ToString("d MMM yyyy") : "Datum onbekend")
+                                        </div>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <div class="p-4 text-center text-muted">Geen historie gevonden.</div>
+                    }
+                </div>
+            </div>
+         </div>
+    </div>
+}
 
 <!-- Participant Details Modal -->
 @if (selectedParticipant != null)
@@ -171,7 +189,7 @@
                     {
                         <div class="text-center py-3">
                             <div class="spinner-border text-primary mb-2"></div>
-                            <p>Loading details...</p>
+                            <p>Details laden...</p>
                         </div>
                     }
                     else
@@ -179,25 +197,25 @@
                         <dl class="row">
                             @if (!string.IsNullOrEmpty(selectedParticipant.Role))
                             {
-                                <dt class="col-sm-4 text-muted">Role</dt>
+                                <dt class="col-sm-4 text-muted">Rol</dt>
                                 <dd class="col-sm-8 mb-3">@selectedParticipant.Role</dd>
                             }
                             
                             @if (!string.IsNullOrEmpty(selectedParticipant.Specialty))
                             {
-                                <dt class="col-sm-4 text-muted">Specialty</dt>
+                                <dt class="col-sm-4 text-muted">Specialisme</dt>
                                 <dd class="col-sm-8 mb-3">@selectedParticipant.Specialty</dd>
                             }
                             
                             @if (!string.IsNullOrEmpty(selectedParticipant.Organization))
                             {
-                                <dt class="col-sm-4 text-muted">Organization</dt>
+                                <dt class="col-sm-4 text-muted">Organisatie</dt>
                                 <dd class="col-sm-8 mb-3">@selectedParticipant.Organization</dd>
                             }
 
                             @if (!string.IsNullOrEmpty(selectedParticipant.Relationship))
                             {
-                                <dt class="col-sm-4 text-muted">Relationship</dt>
+                                <dt class="col-sm-4 text-muted">Relatie</dt>
                                 <dd class="col-sm-8 mb-3">@selectedParticipant.Relationship</dd>
                             }
                             
@@ -215,7 +233,7 @@
                                 </dd>
                             }
                             
-                            <dt class="col-sm-4 text-muted">Source</dt>
+                            <dt class="col-sm-4 text-muted">Bron</dt>
                             <dd class="col-sm-8">
                                 <small class="text-monospace">@selectedParticipant.ResourceType</small>
                             </dd>
@@ -235,9 +253,15 @@
 
 @code {
     private bool isLoading = true;
-    private AcpFormData? acpData;
-    private List<QuestionnaireResponse> questionnaireResponses = new();
+    private Patient? currentPatient;
+    private List<AcpEncounterViewModel> acpEncounters = new();
     
+    // Goals
+    private List<Goal> patientGoals = new();
+    private Goal? latestGoal;
+    private bool showGoalHistory = false;
+    private readonly string[] allowedGoalCodes = new[] { "385987000", "1351964001", "713148004" };
+
     // Participant Modal State
     private ParticipantDetail? selectedParticipant;
     private bool isResolvingParticipant = false;
@@ -250,81 +274,106 @@
     private async Task LoadAcpData()
     {
         isLoading = true;
+        acpEncounters.Clear();
+        patientGoals.Clear();
+        latestGoal = null;
         
         try
         {
             if (AppState.CurrentPatient == null) return;
+            
+            // 1. Load Patient Data
+            await LoadPatientData();
 
-            acpData = new AcpFormData();
             var keys = await LocalStorage.KeysAsync();
+            var parser = new FhirJsonDeserializer();
 
-            // Load Patient (for legally capable extension)
-            var patientKey = $"Patient-{AppState.CurrentPatient.Id}";
-            var patientKeys = keys.Where(k => k.Contains(patientKey)).ToList(); // Relaxed match
-            if (patientKeys.Any())
+            // 2. Identify all relevant resources
+            var allProcedures = new List<Procedure>();
+            var allEncounters = new List<Encounter>();
+            var allQuestionnaireResponses = new List<QuestionnaireResponse>();
+            var allObservations = new List<Observation>();
+
+            // Scan keys (optimized scan)
+            foreach (var key in keys)
             {
-                var json = await LocalStorage.GetItemAsStringAsync(patientKeys.First());
-                if (!string.IsNullOrEmpty(json))
+                if (key.Contains("Procedure") && !key.Contains("QuestionnaireResponse"))
                 {
-                    var parser = new FhirJsonDeserializer();
-                    try { acpData.Patient = parser.Deserialize<Patient>(json); } catch {}
+                   await TryLoadResource<Procedure>(key, parser, allProcedures.Add);
+                }
+                else if (key.Contains("Encounter"))
+                {
+                   await TryLoadResource<Encounter>(key, parser, allEncounters.Add);
+                }
+                else if (key.Contains("QuestionnaireResponse"))
+                {
+                   await TryLoadResource<QuestionnaireResponse>(key, parser, allQuestionnaireResponses.Add);
+                }
+                else if (key.Contains("Observation"))
+                {
+                    await TryLoadResource<Observation>(key, parser, allObservations.Add);
+                }
+                else if (key.Contains("Goal"))
+                {
+                    await TryLoadResource<Goal>(key, parser, OnGoalLoaded);
                 }
             }
             
-            // If Patient not in storage, use current patient from AppState
-            if (acpData.Patient == null)
+            // Goals Post-Processing
+            if (patientGoals.Any())
             {
-                acpData.Patient = AppState.CurrentPatient;
+                latestGoal = patientGoals.OrderByDescending(g => g.StatusDate).FirstOrDefault();
             }
 
-            // Load Procedure (ACP procedure with encounter reference)
-            var procedureKeys = keys.Where(k => k.Contains("Procedure_")).ToList(); // Matches new key format somewhat? or generic check. Checking "Procedure" in key might be safer.
-            // Actually, best to iterate and check resourceType if keys are unpredictable.
-            // But let's stick to simple "contains Procedure" for now or existing logic.
-            // Existing logic: .StartsWith("Procedure-"). New keys: "slug_Procedure_Id". So StartsWith fails.
-            
-            // Let's make it robust: Filter by inspecting JSON content or fuzzy key match.
-            // Fuzzy key match:
-            var allProcedures = keys.Where(k => k.Contains("Procedure") && !k.Contains("QuestionnaireResponse")).ToList();
-            if (allProcedures.Any())
+            // 3. Build Encounter Models
+            foreach (var enc in allEncounters)
             {
-                var json = await LocalStorage.GetItemAsStringAsync(allProcedures.First());
-                if (!string.IsNullOrEmpty(json))
+                // Find linked procedure
+                var linkedProcedures = allProcedures.Where(p => 
+                    (enc.ReasonReference.Any(r => MatchesRef(r, p))) || 
+                    (p.Encounter != null && MatchesRef(p.Encounter, enc))
+                ).ToList();
+                
+                var acpProcedure = linkedProcedures.FirstOrDefault(p => IsAcpProcedure(p));
+                
+                if (acpProcedure != null || linkedProcedures.Any()) 
                 {
-                    var parser = new FhirJsonDeserializer();
-                    try { acpData.Procedure = parser.Deserialize<Procedure>(json); } catch {}
-                }
-            }
+                    // Find linked QRs
+                    var linkedQRs = allQuestionnaireResponses.Where(qr => 
+                        (qr.Encounter != null && MatchesRef(qr.Encounter, enc))
+                    ).ToList();
+                    
+                    // Find linked Observations
+                    var linkedObs = allObservations.Where(obs =>
+                        (obs.Encounter != null && MatchesRef(obs.Encounter, enc))
+                    ).ToList();
 
-            // Load Encounter
-            var encounterKeys = keys.Where(k => k.Contains("Encounter")).ToList();
-            if (encounterKeys.Any())
-            {
-                var json = await LocalStorage.GetItemAsStringAsync(encounterKeys.First());
-                if (!string.IsNullOrEmpty(json))
-                {
-                    var parser = new FhirJsonDeserializer();
-                    try { acpData.Encounter = parser.Deserialize<Encounter>(json); } catch {}
-                }
-            }
-            
-            // Load QuestionnaireResponses
-            var qrKeys = keys.Where(k => k.Contains("QuestionnaireResponse")).ToList();
-            foreach (var key in qrKeys)
-            {
-                try
-                {
-                    var json = await LocalStorage.GetItemAsStringAsync(key);
-                    if (!string.IsNullOrEmpty(json))
+                    var model = new AcpEncounterViewModel
                     {
-                        var parser = new FhirJsonDeserializer();
-                        var qr = parser.Deserialize<QuestionnaireResponse>(json);
-                        if (qr != null) questionnaireResponses.Add(qr);
+                        Encounter = enc,
+                        Procedure = acpProcedure ?? linkedProcedures.FirstOrDefault(),
+                        QuestionnaireResponses = linkedQRs,
+                        Observations = linkedObs
+                    };
+                    
+                    // Parse Date
+                    if (enc.Period?.Start != null && DateTime.TryParse(enc.Period.Start, out var d))
+                    {
+                        model.Date = d;
                     }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error parsing QuestionnaireResponse {key}: {ex.Message}");
+                    else if (model.Procedure?.Performed is FhirDateTime fdt && DateTime.TryParse(fdt.Value, out var pd))
+                    {
+                         model.Date = pd;
+                    }
+                    else
+                    {
+                        model.Date = DateTime.MinValue;
+                    }
+                    
+                    // Parse Participants
+                    model.Participants = GetParticipants(enc, model.Procedure);
+
+                    acpEncounters.Add(model);
                 }
             }
         }
@@ -336,60 +385,136 @@
         isLoading = false;
         StateHasChanged();
     }
+    
+    private void OnGoalLoaded(Goal g)
+    {
+        // Filter Logic
+        if (g.Description?.Coding?.Any(c => allowedGoalCodes.Contains(c.Code)) == true)
+        {
+            patientGoals.Add(g);
+        }
+    }
+    
+    private void ShowGoalHistory()
+    {
+        showGoalHistory = true;
+    }
+    
+    private void CloseGoalHistory()
+    {
+        showGoalHistory = false;
+    }
+    
+    private bool IsAcpProcedure(Procedure p)
+    {
+        if (p == null) return false;
+        return p.Code?.Coding?.Any(c => c.Code == "713603004") == true;
+    }
 
+    private async Task TryLoadResource<T>(string key, FhirJsonDeserializer parser, Action<T> onSuccess) where T : Resource
+    {
+         var json = await LocalStorage.GetItemAsStringAsync(key);
+         if (!string.IsNullOrEmpty(json))
+         {
+             try {
+                 var r = parser.Deserialize<T>(json);
+                 if(r != null) onSuccess(r);
+             } catch {}
+         }
+    }
+
+    private bool MatchesRef(ResourceReference reference, Resource target)
+    {
+        if (reference == null || target == null || string.IsNullOrEmpty(target.Id)) return false;
+        if (string.IsNullOrEmpty(reference.Reference)) return false;
+        // Strict match or ID match if local
+        return reference.Reference.EndsWith(target.Id) || reference.Reference.Contains($"/{target.Id}");
+    }
+
+    private async Task LoadPatientData()
+    {
+        if (AppState.CurrentPatient == null) return;
+        var keys = await LocalStorage.KeysAsync();
+        var parser = new FhirJsonDeserializer();
+        
+        var patientKey = $"Patient-{AppState.CurrentPatient.Id}";
+        var patientKeys = keys.Where(k => k.Contains(patientKey)).ToList();
+        if (patientKeys.Any())
+        {
+            var json = await LocalStorage.GetItemAsStringAsync(patientKeys.First());
+            if (!string.IsNullOrEmpty(json))
+            {
+                try { currentPatient = parser.Deserialize<Patient>(json); } catch {}
+            }
+        }
+        
+        if (currentPatient == null)
+        {
+            currentPatient = AppState.CurrentPatient;
+        }
+    }
+    
+    // Resource Fetcher for Participant Modal
     private async Task<Resource?> FetchResource(string type, string id)
     {
         var parser = new FhirJsonDeserializer();
         var keys = await LocalStorage.KeysAsync();
-        
-        // Strategy: Look for Key containing "Type" and "Id"
-        // New keys: [slug]_[Type]_[Id]
-        // Old keys: [Type]-[Id]-[Date]
-        
+        // Loose matching
         var key = keys.FirstOrDefault(k => k.Contains(type) && k.Contains(id));
-        
         if (key != null)
         {
              var json = await LocalStorage.GetItemAsStringAsync(key);
              if (!string.IsNullOrEmpty(json))
              {
-                 try {
-                     return parser.Deserialize<Resource>(json);
-                 } catch { return null; }
+                 try { return parser.Deserialize<Resource>(json); } catch { return null; }
              }
         }
-        
         return null;
+    }
+
+    // --- Participant Logic ---
+    private List<ParticipantInfo> GetParticipants(Encounter enc, Procedure? proc)
+    {
+        var list = new List<ParticipantInfo>();
+
+        if (enc?.Participant != null)
+        {
+            foreach(var p in enc.Participant)
+            {
+                if (p.Individual != null)
+                {
+                    bool isPractitioner = p.Individual.Reference?.Contains("Practitioner") == true;
+                    list.Add(new ParticipantInfo(
+                        p.Individual.Display ?? "Onbekend", 
+                        p.Individual.Reference ?? "", 
+                        isPractitioner,
+                        null
+                    ));
+                }
+            }
+        }
+        if (proc?.Performer != null)
+        {
+            foreach(var p in proc.Performer)
+            {
+                if (p.Actor != null && !list.Any(x => x.Reference == p.Actor.Reference))
+                {
+                     bool isPractitioner = p.Actor.Reference?.Contains("Practitioner") == true;
+                     list.Add(new ParticipantInfo(
+                        p.Actor.Display ?? "Onbekend", 
+                        p.Actor.Reference ?? "",
+                        isPractitioner,
+                        p.Function?.Text
+                     ));
+                }
+            }
+        }
+        return list;
     }
 
     private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
     {
         Navigation.NavigateTo($"acp/QuestionnaireResponse/{qr.Id}");
-    }
-
-    // --- Participant Logic ---
-
-    private List<ParticipantInfo> GetParticipants()
-    {
-        var list = new List<ParticipantInfo>();
-
-        // Priority 1: Encounter participants
-        if (acpData?.Encounter?.Participant?.Any() == true)
-        {
-            list.AddRange(acpData!.Encounter!.Participant
-                .Where(p => p.Individual != null)
-                .Select(p => new ParticipantInfo(p.Individual.Display ?? "Onbekend", p.Individual?.Reference ?? "")));
-        }
-        
-        // Priority 2: Procedure performers (only if list is empty to avoid dupes if both exist)
-        if (!list.Any() && acpData?.Procedure?.Performer?.Any() == true)
-        {
-            list.AddRange(acpData!.Procedure!.Performer
-                 .Where(p => p.Actor != null)
-                 .Select(p => new ParticipantInfo(p.Actor.Display ?? "Onbekend", p.Actor?.Reference ?? "")));
-        }
-
-        return list.DistinctBy(p => p.Reference).ToList(); // De-dupe by reference
     }
 
     private async Task ShowParticipantDetails(ParticipantInfo info)
@@ -410,38 +535,30 @@
 
         try
         {
-            // Parse Reference: ResourceType/Id
             var parts = info.Reference.Split('/');
             if (parts.Length < 2) return;
             
             var resourceType = parts[parts.Length - 2];
             var resourceId = parts[parts.Length - 1];
 
-            // 1. Fetch Primary Resource (PractitionerRole or RelatedPerson)
             var resource = await FetchResource(resourceType, resourceId);
 
             if (resource is PractitionerRole role)
             {
                 selectedParticipant.ResourceType = "PractitionerRole";
-                
-                // Role (Code)
                 var roles = role.Code?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
                                      .Concat(role.Code?.Select(c => c.Text) ?? Enumerable.Empty<string>())
                                      .Where(s => !string.IsNullOrEmpty(s))
                                      .Distinct();
                 selectedParticipant.Role = roles != null ? string.Join(", ", roles) : null;
 
-                // Specialty
                 var specialties = role.Specialty?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
                                            .Concat(role.Specialty?.Select(c => c.Text) ?? Enumerable.Empty<string>())
                                            .Where(s => !string.IsNullOrEmpty(s))
                                            .Distinct();
                 selectedParticipant.Specialty = specialties != null ? string.Join(", ", specialties) : null;
-
                 selectedParticipant.Organization = role.Organization?.Display;
                 selectedParticipant.Telecoms = role.Telecom;
-
-                // Resolve Practitioner if linked
                 if (role.Practitioner?.Reference != null)
                 {
                     var practRefParts = role.Practitioner.Reference.Split('/');
@@ -450,19 +567,13 @@
                        var practitioner = await FetchResource("Practitioner", practRefParts.Last()) as Practitioner;
                        if (practitioner != null)
                        {
-                            // Prefer Practitioner Name
                             var name = practitioner.Name?.FirstOrDefault();
                             if (name != null)
                             {
                                 var given = string.Join(" ", name.Given ?? new string[0]);
                                 selectedParticipant.Name = $"{given} {name.Family}".Trim();
                             }
-                            
-                            // Merge/Prefer Practitioner Telecoms
-                            if (practitioner.Telecom != null)
-                            {
-                                selectedParticipant.Telecoms.AddRange(practitioner.Telecom);
-                            }
+                            if (practitioner.Telecom != null) selectedParticipant.Telecoms.AddRange(practitioner.Telecom);
                        }
                     }
                 }
@@ -470,20 +581,16 @@
             else if (resource is RelatedPerson related)
             {
                 selectedParticipant.ResourceType = "RelatedPerson";
-                
-                // Relationships (support multiple)
                 var rels = related.Relationship?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
                                                .Concat(related.Relationship?.Select(c => c.Text) ?? Enumerable.Empty<string>())
                                                .Where(s => !string.IsNullOrEmpty(s))
                                                .Distinct();
                 selectedParticipant.Relationship = rels != null ? string.Join(", ", rels) : null;
-
                 selectedParticipant.Telecoms = related.Telecom;
             }
             else if (resource is Practitioner practitioner)
             {
                  selectedParticipant.ResourceType = "Practitioner";
-                 // Prefer Practitioner Name
                 var name = practitioner.Name?.FirstOrDefault();
                 if (name != null)
                 {
@@ -507,22 +614,9 @@
         selectedParticipant = null;
     }
 
-    // --- Helpers ---
-    private string GetQuestionnaireResponseDate(QuestionnaireResponse qr)
-    {
-        if (!string.IsNullOrEmpty(qr.Authored))
-        {
-            if (DateTime.TryParse(qr.Authored, out var date))
-            {
-                return date.ToString("dd-MM-yyyy HH:mm");
-            }
-        }
-        return "Unknown date";
-    }
-
     private string GetPatientName()
     {
-        var patient = acpData?.Patient ?? AppState.CurrentPatient;
+        var patient = currentPatient ?? AppState.CurrentPatient;
         if (patient?.Name?.FirstOrDefault() is HumanName name)
         {
             var given = string.Join(" ", name.Given ?? new string[0]);
@@ -531,46 +625,10 @@
         return "Unknown";
     }
 
-    private string GetPatientBirthDate()
-    {
-        var patient = acpData?.Patient ?? AppState.CurrentPatient;
-        if (!string.IsNullOrEmpty(patient?.BirthDate))
-        {
-            if (DateTime.TryParse(patient.BirthDate, out var date))
-            {
-                return date.ToString("dd-MM-yyyy");
-            }
-        }
-        return "Unknown";
-    }
-
-    private string GetEncounterDate()
-    {
-        // Priority 1: Encounter period start
-        if (acpData?.Encounter?.Period?.Start != null)
-        {
-            if (DateTime.TryParse(acpData.Encounter.Period.Start, out var date))
-            {
-                return date.ToString("dd-MM-yyyy");
-            }
-        }
-        
-        // Priority 2: Procedure performed date
-        if (acpData?.Procedure?.Performed is FhirDateTime dt)
-        {
-            if (DateTime.TryParse(dt.Value, out var date))
-            {
-                return date.ToString("dd-MM-yyyy");
-            }
-        }
-        
-        return "-";
-    }
-    
     // --- Legally Capable Utils ---
     private (bool? isCapable, string? comment) GetLegallyCapableInfo()
     {
-        var patient = acpData?.Patient;
+        var patient = currentPatient;
         if (patient == null) return (null, null);
 
         var ext = patient.Extension?.FirstOrDefault(e => 
@@ -609,9 +667,9 @@
         var (capable, _) = GetLegallyCapableInfo();
         return capable switch
         {
-            true => "bg-success-subtle border-success",
-            false => "bg-danger-subtle border-danger",
-            null => "bg-warning-subtle border-warning"
+            true => "bg-success-subtle border-success text-success-emphasis",
+            false => "bg-danger-subtle border-danger text-danger-emphasis",
+            null => "bg-warning-subtle border-warning text-warning-emphasis"
         };
     }
 
@@ -624,26 +682,5 @@
             false => "bi bi-x-circle-fill text-danger",
             null => "bi bi-question-circle-fill text-warning"
         };
-    }
-
-    private class AcpFormData
-    {
-        public Patient? Patient { get; set; }
-        public Procedure? Procedure { get; set; }
-        public Encounter? Encounter { get; set; }
-    }
-    
-    private record ParticipantInfo(string Display, string Reference);
-    
-    private class ParticipantDetail 
-    {
-        public string Name { get; set; } = "";
-        public string Reference { get; set; } = "";
-        public string ResourceType { get; set; } = "";
-        public string? Role { get; set; }
-        public string? Specialty { get; set; }
-        public string? Organization { get; set; }
-        public string? Relationship { get; set; }
-        public List<ContactPoint> Telecoms { get; set; } = new();
     }
 }
