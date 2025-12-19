@@ -115,12 +115,12 @@ main[b-2vvxzarkhv] {
 }
 
 .bi[b-s7b9q36p16] {
-    display: inline-block;
-    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 1.25rem;
     height: 1.25rem;
-    margin-right: 0.75rem;
-    top: -1px;
+    flex-shrink: 0;
     background-size: cover;
 }
 
@@ -176,10 +176,11 @@ main[b-2vvxzarkhv] {
     .nav-item[b-s7b9q36p16]  a {
         color: #495057;
         border-radius: 4px;
-        height: 3rem;
+        min-height: 3rem;
         display: flex;
         align-items: center;
-        line-height: 3rem;
+        padding: 0.5rem 0.75rem;
+        text-decoration: none;
     }
 
 .nav-item[b-s7b9q36p16]  a.active {
@@ -195,8 +196,7 @@ main[b-2vvxzarkhv] {
 }
 
 .nav-item[b-s7b9q36p16]  a.nav-link-secondary {
-    height: 2.25rem;
-    line-height: 2.25rem;
+    min-height: 2.25rem;
     font-size: 0.85rem;
     color: rgba(var(--bs-secondary-rgb), 1);
 }
