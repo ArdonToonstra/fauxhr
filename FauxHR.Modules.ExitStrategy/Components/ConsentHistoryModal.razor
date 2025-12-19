@@ -1,0 +1,61 @@
+@using Hl7.Fhir.Model
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Geschiedenis: @Title</h5>
+                <button type="button" class="btn-close" @onclick="OnClose"></button>
+            </div>
+            <div class="modal-body p-0">
+                @if (Consents.Any())
+                {
+                    <ul class="list-group list-group-flush">
+                        @foreach (var item in Consents)
+                        {
+                            <li class="list-group-item p-3">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="fw-bold">
+                                            @(item.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Display ?? item.Provision?.Code?.FirstOrDefault()?.Text ?? "Onbekend doel")
+                                        </div>
+                                        <div class="small text-muted mt-1">
+                                            <i class="bi bi-gear me-1"></i>
+                                            Besluit: @(item.Provision?.Type?.ToString() ?? "Anders")
+                                        </div>
+                                    </div>
+                                    <div class="text-end text-muted small">
+                                        @(!string.IsNullOrEmpty(item.DateTime) ? DateTime.Parse(item.DateTime).ToString("d MMM yyyy") : "Datum onbekend")
+                                    </div>
+                                </div>
+
+                                @if (item.Provision?.Actor != null && item.Provision.Actor.Any())
+                                {
+                                    <div class="border-top pt-2 mt-2">
+                                        <small class="text-muted d-block mb-1 fw-bold">Betrokkenen:</small>
+                                        @foreach (var actor in item.Provision.Actor)
+                                        {
+                                            <span class="badge bg-light text-dark border me-1 mb-1">
+                                                @(actor.Reference?.Display ?? actor.Reference?.Reference ?? "Onbekend/Patiënt")
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="p-4 text-center text-muted">Geen historie gevonden.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public List<Consent> Consents { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+}

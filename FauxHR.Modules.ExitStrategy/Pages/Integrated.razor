@@ -3,15 +3,14 @@
 @using FauxHR.Modules.ExitStrategy.Services
 @using FauxHR.Modules.ExitStrategy.Models
 @using FauxHR.Modules.ExitStrategy.Components
+@using FauxHR.Modules.ExitStrategy.Helpers
 @using Hl7.Fhir.Model
-@using Hl7.Fhir.Serialization
-@using Task = System.Threading.Tasks.Task
-@using System.IO
 @using Blazored.LocalStorage
+@using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject ILocalStorageService LocalStorage
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
+@inject AcpIntegratedDataLoader DataLoader
 
 <PageTitle>ACP - Integrated View</PageTitle>
 
@@ -50,222 +49,28 @@
     else
     {
         <!-- Patient Header Info -->
-        <div class="card border-0 shadow-sm mb-5 bg-white">
-            <div class="card-body p-4">
-                <div class="row">
-                    <div class="col-md-4">
-                         <div class="d-flex align-items-center mb-3 h-100">
-                            <div class="bg-primary-subtle text-primary rounded-circle p-3 me-3">
-                                <i class="bi bi-person-vcard fs-4"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0 fw-bold">@GetPatientName()</h5>
-                                <div class="text-muted small">Patiënt</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <!-- Primary Goal -->
-                         <div class="border rounded p-3 h-100 cursor-pointer hover-bg-light position-relative" @onclick="ShowGoalHistory">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-info-subtle text-info-emphasis rounded-circle p-3 me-3">
-                                    <i class="bi bi-flag fs-4"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-bold">
-                                        @(latestGoal?.Description?.Coding?.FirstOrDefault()?.Display ?? latestGoal?.Description?.Text ?? "Geen doel bekend")
-                                    </div>
-                                    @if (latestGoal != null)
-                                    {
-                                         <small class="text-muted d-block mt-1">
-                                             @(!string.IsNullOrEmpty(latestGoal.StatusDate) ? DateTime.Parse(latestGoal.StatusDate).ToString("d MMM yyyy") : "-")
-                                         </small>
-                                    }
-                                    <div class="small text-muted mt-1">Behandeldoel</div>
-                                </div>
-                                <i class="bi bi-chevron-right position-absolute top-50 end-0 translate-middle-y me-3 text-muted"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                     <div class="col-md-4">
-                        <!-- Legally Capable Indicator -->
-                        <div class="border rounded p-3 @GetLegallyCapableClass() h-100 d-flex align-items-center">
-                            <i class="@GetLegallyCapableIcon() me-3 fs-3"></i>
-                            <div>
-                                <div class="fw-bold">@GetLegallyCapableText()</div>
-                                @if (!string.IsNullOrEmpty(GetLegallyCapableComment()))
-                                {
-                                    <small class="text-muted d-block mt-1">@GetLegallyCapableComment()</small>
-                                }
-                                <div class="small text-muted mt-1">Wilsbekwaamheid</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <PatientHeaderInfo 
+            PatientName="@patientName"
+            LatestGoal="@data.LatestGoal"
+            OnShowGoalHistory="@ShowGoalHistory"
+            LegallyCapableText="@legallyCapableText"
+            LegallyCapableComment="@legallyCapableComment"
+            LegallyCapableClass="@legallyCapableClass"
+            LegallyCapableIcon="@legallyCapableIcon" />
 
         <!-- Treatment Directives / Behandelwensen -->
-        <div class="row mb-5 g-4">
-            <!-- Permit -->
-            <div class="col-md-4">
-                <h6 class="text-success fw-bold mb-3 border-bottom pb-2 border-success">
-                    <i class="bi bi-check-circle-fill me-2"></i>Wel uitvoeren
-                </h6>
-                @if (permits.Any())
-                {
-                    <div class="d-flex flex-column gap-2">
-                        @foreach(var item in permits)
-                        {
-                            <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => ShowConsentHistory(item)">
-                                <div class="card-body p-3 border-start border-4 border-success rounded-end">
-                                    <div class="fw-bold">@item.Title</div>
-                                    <div class="small text-muted mt-1">
-                                        <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <span class="text-muted small fst-italic">Geen afspraken</span>
-                }
-            </div>
-
-            <!-- Deny -->
-            <div class="col-md-4">
-                <h6 class="text-danger fw-bold mb-3 border-bottom pb-2 border-danger">
-                    <i class="bi bi-x-circle-fill me-2"></i>Niet uitvoeren
-                </h6>
-                 @if (denials.Any())
-                {
-                    <div class="d-flex flex-column gap-2">
-                        @foreach(var item in denials)
-                        {
-                            <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => ShowConsentHistory(item)">
-                                <div class="card-body p-3 border-start border-4 border-danger rounded-end">
-                                    <div class="fw-bold">@item.Title</div>
-                                    <div class="small text-muted mt-1">
-                                        <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-                 else
-                {
-                    <span class="text-muted small fst-italic">Geen afspraken</span>
-                }
-            </div>
-
-            <!-- Other -->
-            <div class="col-md-4">
-                <h6 class="text-warning fw-bold mb-3 border-bottom pb-2 border-warning text-dark">
-                    <i class="bi bi-question-circle-fill me-2"></i>Anders / Niet besproken
-                </h6>
-                 @if (others.Any())
-                {
-                    <div class="d-flex flex-column gap-2">
-                        @foreach(var item in others)
-                        {
-                            <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => ShowConsentHistory(item)">
-                                 <div class="card-body p-3 border-start border-4 border-warning rounded-end">
-                                    <div class="fw-bold">@item.Title</div>
-                                    <div class="small text-muted mt-1">
-                                        <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
-                                    </div>
-                                    @if (!string.IsNullOrEmpty(item.SpecificationOther))
-                                    {
-                                        <div class="small text-dark mt-2 p-2 bg-light rounded fst-italic">"@item.SpecificationOther"</div>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-                 else
-                {
-                }
-            </div>
-        </div>
+        <TreatmentDirectivesSection 
+            Permits="@data.Permits"
+            Denials="@data.Denials"
+            Others="@data.Others"
+            OnShowConsentHistory="@HandleShowConsentHistory" />
 
         <!-- Observations / Bevindingen & Wensen -->
-        <div class="mb-5">
-             <h6 class="text-primary fw-bold mb-3 border-bottom pb-2 border-primary">
-                <i class="bi bi-clipboard-data-fill me-2"></i>Bevindingen &amp; Wensen
-            </h6>
-            @if (latestObservations.Any())
-            {
-                <div class="row g-4">
-                    @foreach(var obs in latestObservations)
-                    {
-                        <div class="col-md-3">
-                            <div class="card h-100 border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => ShowObservationDetails(obs)">
-                                <div class="card-body p-3 border-start border-4 border-primary rounded-end">
-                                    <div class="fw-bold mb-2" style="min-height: 2.5em;">
-                                        @(obs.Code?.Coding?.FirstOrDefault()?.Display ?? obs.Code?.Text ?? "Onbekend item")
-                                    </div>
-                                    
-                                    <div class="fw-bold mb-2">
-                                        @if (obs.Value is CodeableConcept cc)
-                                        {
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle text-wrap text-start">
-                                                @(cc.Coding?.FirstOrDefault()?.Display ?? cc.Text ?? "-")
-                                            </span>
-                                        }
-                                        else if (obs.Value is FhirString s)
-                                        {
-                                            <span class="fst-italic text-muted">"@s.Value"</span>
-                                        }
-                                        else if (obs.Value is FhirBoolean b)
-                                        {
-                                            <span class="badge @(b.Value == true ? "bg-success" : "bg-secondary")">
-                                                @(b.Value == true ? "Ja" : "Nee")
-                                            </span>
-                                        }
-                                        else if (obs.Value is Quantity q)
-                                        {
-                                            <span class="fw-medium">@q.Value @q.Unit</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">-</span>
-                                        }
-                                    </div>
+        <ObservationsSection 
+            Observations="@data.LatestObservations"
+            OnShowObservationDetails="@HandleShowObservationDetails" />
 
-                                    <div class="small text-muted mt-auto pt-2 border-top">
-                                        <i class="bi bi-calendar me-1"></i>
-                                        @if(obs.Effective is FhirDateTime dt)
-                                        {
-                                            @DateTime.Parse(dt.Value).ToString("d MMM yyyy")
-                                        }
-                                        else if (obs.Issued.HasValue)
-                                        {
-                                            @obs.Issued.Value.ToString("d MMM yyyy")
-                                        }
-                                        else
-                                        {
-                                            <span>-</span>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="text-muted small fst-italic">Geen bevindingen geregistreerd.</div>
-            }
-        </div>
-
-        @if (!acpEncounters.Any())
+        @if (!data.AcpEncounters.Any())
         {
             <div class="alert alert-info">
                 <i class="bi bi-info-circle me-2"></i>
@@ -276,497 +81,97 @@
         {
              <!-- Timeline / Encounter List -->
             <div class="acp-timeline">
-                @foreach (var encounterModel in acpEncounters.OrderByDescending(e => e.Date))
+                @foreach (var encounterModel in data.AcpEncounters.OrderByDescending(e => e.Date))
                 {
-                    <AcpEncounterCard Model="@encounterModel" 
-                                      OnShowParticipant="ShowParticipantDetails" 
-                                      OnShowQuestionnaire="ShowQuestionnaireResponse" />
+                    <AcpEncounterCard 
+                        Model="@encounterModel"
+                        OnShowParticipant="@HandleShowParticipant"
+                        OnShowQuestionnaire="@ShowQuestionnaireResponse" />
                 }
             </div>
         }
-        
+
         <!-- Unlinked Questionnaires / Overige Formulieren -->
-        @if (unlinkedQuestionnaires.Any())
+        @if (data.UnlinkedQuestionnaires.Any())
         {
-            <div class="mt-5 mb-5">
-                 <h6 class="text-secondary fw-bold mb-3 border-bottom pb-2">
-                    <i class="bi bi-file-earmark-text me-2"></i>Overige Formulieren
-                </h6>
-                <div class="row g-3">
-                    @foreach(var qr in unlinkedQuestionnaires)
-                    {
-                        <div class="col-md-3">
-                             <div class="card h-100 border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => ShowQuestionnaireResponse(qr)">
-                                <div class="card-body p-3 border-top border-4 border-secondary">
-                                    <div class="fw-bold text-truncate" title="@(qr.Questionnaire ?? "Onbekend formulier")">
-                                        @(qr.Questionnaire?.Split('/').Last() ?? "Formulier")
-                                    </div>
-                                    <div class="small text-muted mt-2">
-                                        <i class="bi bi-calendar me-1"></i>
-                                        @if (!string.IsNullOrEmpty(qr.Authored))
-                                        {
-                                             @DateTime.Parse(qr.Authored).ToString("d MMM yyyy")
-                                        }
-                                        else
-                                        {
-                                            <span>Datum onbekend</span>
-                                        }
-                                    </div>
-                                    <div class="mt-2">
-                                        <span class="badge bg-light text-secondary border">
-                                            @(qr.Status?.ToString() ?? "Status onbekend")
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
+            <UnlinkedQuestionnairesSection 
+                Questionnaires="@data.UnlinkedQuestionnaires"
+                OnShowQuestionnaire="@ShowQuestionnaireResponse" />
         }
     }
 </div>
 
-<!-- Goal History Modal -->
+<!-- Modals -->
 @if (showGoalHistory)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Geschiedenis Behandeldoelen</h5>
-                    <button type="button" class="btn-close" @onclick="CloseGoalHistory"></button>
-                </div>
-                <div class="modal-body p-0">
-                    @if (patientGoals.Any())
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach(var goal in patientGoals.OrderByDescending(g => g.StatusDate))
-                            {
-                                <li class="list-group-item p-3">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <div class="fw-bold">
-                                                @(goal.Description?.Coding?.FirstOrDefault()?.Display ?? goal.Description?.Text ?? "Onbekend doel")
-                                            </div>
-                                            <div class="small text-muted mt-1">
-                                                <i class="bi bi-activity me-1"></i>Status: @(goal.LifecycleStatus?.ToString() ?? "-")
-                                            </div>
-                                        </div>
-                                        <div class="text-end text-muted small">
-                                            @(!string.IsNullOrEmpty(goal.StatusDate) ? DateTime.Parse(goal.StatusDate).ToString("d MMM yyyy") : "Datum onbekend")
-                                        </div>
-                                    </div>
-                                </li>
-                            }
-                        </ul>
-                    }
-                    else
-                    {
-                        <div class="p-4 text-center text-muted">Geen historie gevonden.</div>
-                    }
-                </div>
-            </div>
-         </div>
-    </div>
+    <GoalHistoryModal 
+        Goals="@data.PatientGoals"
+        OnClose="@CloseGoalHistory" />
 }
 
-}
-
-<!-- Consent History Modal -->
 @if (showConsentHistory)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Geschiedenis: @selectedConsentTitle</h5>
-                    <button type="button" class="btn-close" @onclick="CloseConsentHistory"></button>
-                </div>
-                <div class="modal-body p-0">
-                    @if (consentHistoryList.Any())
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach(var item in consentHistoryList)
-                            {
-                                <li class="list-group-item p-3">
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <div>
-                                            <div class="fw-bold">
-                                                @(item.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Display ?? item.Provision?.Code?.FirstOrDefault()?.Text ?? "Onbekend doel")
-                                            </div>
-                                            <div class="small text-muted mt-1">
-                                                <i class="bi bi-gear me-1"></i>
-                                                Besluit: @(item.Provision?.Type?.ToString() ?? "Anders")
-                                            </div>
-                                        </div>
-                                        <div class="text-end text-muted small">
-                                            @(!string.IsNullOrEmpty(item.DateTime) ? DateTime.Parse(item.DateTime).ToString("d MMM yyyy") : "Datum onbekend")
-                                        </div>
-                                    </div>
-                                    
-                                     @if (item.Provision?.Actor != null && item.Provision.Actor.Any())
-                                     {
-                                         <div class="border-top pt-2 mt-2">
-                                             <small class="text-muted d-block mb-1 fw-bold">Betrokkenen:</small>
-                                             @foreach(var actor in item.Provision.Actor)
-                                             {
-                                                 <span class="badge bg-light text-dark border me-1 mb-1">
-                                                     @(actor.Reference?.Display ?? actor.Reference?.Reference ?? "Onbekend/Patiënt")
-                                                 </span>
-                                             }
-                                         </div>
-                                     }
-                                </li>
-                            }
-                        </ul>
-                    }
-                    else
-                    {
-                        <div class="p-4 text-center text-muted">Geen historie gevonden.</div>
-                    }
-                </div>
-            </div>
-         </div>
-    </div>
+    <ConsentHistoryModal 
+        Title="@selectedConsentTitle"
+        Consents="@consentHistoryList"
+        OnClose="@CloseConsentHistory" />
 }
 
-<!-- Observation Details Modal -->
 @if (showObservationModal && selectedObservation != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-         <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        @(selectedObservation.Code?.Coding?.FirstOrDefault()?.Display ?? selectedObservation.Code?.Text ?? "Detail")
-                    </h5>
-                    <button type="button" class="btn-close" @onclick="CloseObservationModal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="text-muted small d-block">Waarde</label>
-                        <div class="fs-5 fw-bold text-primary">
-                            @if (selectedObservation.Value is CodeableConcept cc)
-                            {
-                                @(cc.Coding?.FirstOrDefault()?.Display ?? cc.Text ?? "-")
-                            }
-                            else if (selectedObservation.Value is FhirString s)
-                            {
-                                @s.Value
-                            }
-                            else if (selectedObservation.Value is FhirBoolean b)
-                            {
-                                @(b.Value == true ? "Ja" : "Nee")
-                            }
-                             else if (selectedObservation.Value is Quantity q)
-                            {
-                                @q.Value @q.Unit
-                            }
-                            else
-                            {
-                                <span class="text-muted">-</span>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                         <div class="col-6">
-                            <label class="text-muted small d-block">Datum</label>
-                            <div>
-                                @if(selectedObservation.Effective is FhirDateTime dt)
-                                {
-                                    @DateTime.Parse(dt.Value).ToString("g")
-                                }
-                                else if (selectedObservation.Issued.HasValue)
-                                {
-                                    @selectedObservation.Issued.Value.ToString("g")
-                                }
-                                else
-                                {
-                                    <span>-</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <label class="text-muted small d-block">Status</label>
-                            <div>@(selectedObservation.Status?.ToString() ?? "-")</div>
-                        </div>
-                    </div>
-
-                    @if (selectedObservation.Method != null)
-                    {
-                         <div class="mt-3">
-                            <label class="text-muted small d-block">Methode</label>
-                            <div>
-                                @(selectedObservation.Method.Coding?.FirstOrDefault()?.Display ?? selectedObservation.Method.Text ?? "-")
-                            </div>
-                        </div>
-                    }
-
-                    @if (selectedObservation.Note.Any())
-                    {
-                        <div class="mt-3 pt-3 border-top">
-                            <label class="text-muted small d-block fw-bold mb-1">Notities</label>
-                             @foreach(var note in selectedObservation.Note)
-                             {
-                                 <div class="mb-1 fst-italic bg-light p-2 rounded small">@note.Text</div>
-                             }
-                        </div>
-                    }
-                    
-                     <!-- Debug only -->
-                    <div class="mt-3 pt-3 border-top text-muted small user-select-all">
-                        ID: @selectedObservation.Id
-                    </div>
-                </div>
-            </div>
-         </div>
-    </div>
+    <ObservationDetailsModal 
+        Observation="@selectedObservation"
+        OnClose="@CloseObservationModal" />
 }
 
-<!-- Participant Details Modal -->
 @if (selectedParticipant != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">@selectedParticipant.Name</h5>
-                    <button type="button" class="btn-close" @onclick="CloseParticipantModal"></button>
-                </div>
-                <div class="modal-body">
-                    @if (isResolvingParticipant)
-                    {
-                        <div class="text-center py-3">
-                            <div class="spinner-border text-primary mb-2"></div>
-                            <p>Details laden...</p>
-                        </div>
-                    }
-                    else
-                    {
-                        <dl class="row">
-                            @if (!string.IsNullOrEmpty(selectedParticipant.Role))
-                            {
-                                <dt class="col-sm-4 text-muted">Rol</dt>
-                                <dd class="col-sm-8 mb-3">@selectedParticipant.Role</dd>
-                            }
-                            
-                            @if (!string.IsNullOrEmpty(selectedParticipant.Specialty))
-                            {
-                                <dt class="col-sm-4 text-muted">Specialisme</dt>
-                                <dd class="col-sm-8 mb-3">@selectedParticipant.Specialty</dd>
-                            }
-                            
-                            @if (!string.IsNullOrEmpty(selectedParticipant.Organization))
-                            {
-                                <dt class="col-sm-4 text-muted">Organisatie</dt>
-                                <dd class="col-sm-8 mb-3">@selectedParticipant.Organization</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(selectedParticipant.Relationship))
-                            {
-                                <dt class="col-sm-4 text-muted">Relatie</dt>
-                                <dd class="col-sm-8 mb-3">@selectedParticipant.Relationship</dd>
-                            }
-                            
-                            @if (selectedParticipant.Telecoms.Any())
-                            {
-                                <dt class="col-sm-4 text-muted">Contact</dt>
-                                <dd class="col-sm-8 mb-3">
-                                    @foreach(var t in selectedParticipant.Telecoms)
-                                    {
-                                        <div class="mb-1">
-                                            <i class="bi bi-@(t.System == ContactPoint.ContactPointSystem.Email ? "envelope" : "telephone") me-2"></i>
-                                            @t.Value (@t.Use)
-                                        </div>
-                                    }
-                                </dd>
-                            }
-                            
-                            <dt class="col-sm-4 text-muted">Bron</dt>
-                            <dd class="col-sm-8">
-                                <small class="text-monospace">@selectedParticipant.ResourceType</small>
-                            </dd>
-                        </dl>
-                    }
-                </div>
-                <!-- Debug Info -->
-                <div class="modal-footer justify-content-start bg-light">
-                     <small class="text-muted w-100">
-                         <strong>Reference:</strong> @selectedParticipant.Reference
-                     </small>
-                </div>
-            </div>
-        </div>
-    </div>
+    <ParticipantDetailsModal 
+        Participant="@selectedParticipant"
+        OnClose="@CloseParticipantModal" />
 }
 
 @code {
     private bool isLoading = true;
-    private Patient? currentPatient;
-    private List<AcpEncounterViewModel> acpEncounters = new();
-    private List<QuestionnaireResponse> unlinkedQuestionnaires = new();
+    private AcpIntegratedData data = new();
     
-    // Goals
-    private List<Goal> patientGoals = new();
-    private Goal? latestGoal;
-    private bool showGoalHistory = false;
-    private readonly string[] allowedGoalCodes = new[] { "385987000", "1351964001", "713148004" };
+    // Computed properties
+    private string patientName = "Unknown";
+    private string legallyCapableText = "Status onbekend";
+    private string legallyCapableComment = "";
+    private string legallyCapableClass = "bg-warning-subtle border-warning text-warning-emphasis";
+    private string legallyCapableIcon = "bi bi-question-circle-fill text-warning";
 
-    // Treatment Directives
-    private List<Consent> allConsents = new();
-    private List<TreatmentDirectiveViewModel> permits = new();
-    private List<TreatmentDirectiveViewModel> denials = new();
-    private List<TreatmentDirectiveViewModel> others = new();
-    
+    // Modal state
+    private bool showGoalHistory = false;
     private bool showConsentHistory = false;
+    private bool showObservationModal = false;
     private List<Consent> consentHistoryList = new();
     private string selectedConsentTitle = "";
-
-    // Observations
-    private List<Observation> allObservations = new();
-    private List<Observation> latestObservations = new();
-    private readonly string[] allowedObservationCodes = new[] { "153851000146100", "395091006", "340171000146104", "247751003" };
     private Observation? selectedObservation;
-    private bool showObservationModal = false;
-
-    // Participant Modal State
     private ParticipantDetail? selectedParticipant;
-    private bool isResolvingParticipant = false;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAcpData();
+        await LoadAcpDataAsync();
     }
-    
-    private async Task LoadAcpData()
+
+    private async Task LoadAcpDataAsync()
     {
         isLoading = true;
-        acpEncounters.Clear();
-        unlinkedQuestionnaires.Clear();
-        patientGoals.Clear();
-        latestGoal = null;
-        
+
         try
         {
             if (AppState.CurrentPatient == null) return;
+
+            data = await DataLoader.LoadDataAsync(AppState.CurrentPatient);
             
-            // 1. Load Patient Data
-            await LoadPatientData();
-
-            var keys = await LocalStorage.KeysAsync();
-            var parser = new FhirJsonDeserializer();
-
-            // 2. Identify all relevant resources
-            // 2. Identify all relevant resources
-            var allProcedures = new List<Procedure>();
-            var allEncounters = new List<Encounter>();
-            var allQuestionnaireResponses = new List<QuestionnaireResponse>();
-            allObservations.Clear(); // Clear list
-
-            // Scan keys (optimized scan)
-            foreach (var key in keys)
-            {
-                if (key.Contains("Procedure") && !key.Contains("QuestionnaireResponse"))
-                {
-                   await TryLoadResource<Procedure>(key, parser, allProcedures.Add);
-                }
-                else if (key.Contains("Encounter"))
-                {
-                   await TryLoadResource<Encounter>(key, parser, allEncounters.Add);
-                }
-                else if (key.Contains("QuestionnaireResponse"))
-                {
-                   await TryLoadResource<QuestionnaireResponse>(key, parser, allQuestionnaireResponses.Add);
-                }
-                else if (key.Contains("Observation"))
-                {
-                    await TryLoadResource<Observation>(key, parser, allObservations.Add);
-                }
-                else if (key.Contains("Goal"))
-                {
-                    await TryLoadResource<Goal>(key, parser, OnGoalLoaded);
-                }
-                else if (key.Contains("Consent"))
-                {
-                    await TryLoadResource<Consent>(key, parser, allConsents.Add);
-                }
-            }
-            
-            // Goals Post-Processing
-            if (patientGoals.Any())
-            {
-                latestGoal = patientGoals.OrderByDescending(g => g.StatusDate).FirstOrDefault();
-            }
-
-            // Treatment Directives Processing
-            ProcessTreatmentDirectives(allConsents);
-            
-            // Observations Processing
-            // Observations Processing
-            ProcessObservations();
-
-            // 3. Build Encounter Models
-            var linkedQrIds = new HashSet<string>();
-            foreach (var enc in allEncounters)
-            {
-                // ... (rest of loop)
-                // Find linked procedure
-                var linkedProcedures = allProcedures.Where(p => 
-                    (enc.ReasonReference.Any(r => MatchesRef(r, p))) || 
-                    (p.Encounter != null && MatchesRef(p.Encounter, enc))
-                ).ToList();
-                
-                var acpProcedure = linkedProcedures.FirstOrDefault(p => IsAcpProcedure(p));
-                
-                if (acpProcedure != null || linkedProcedures.Any()) 
-                {
-                    // Find linked QRs
-                    var linkedQRs = allQuestionnaireResponses.Where(qr => 
-                        (qr.Encounter != null && MatchesRef(qr.Encounter, enc))
-                    ).ToList();
-                    linkedQrIds.UnionWith(linkedQRs.Select(q => q.Id));
-                    
-                    // Find linked Observations
-                    var linkedObs = allObservations.Where(obs =>
-                        (obs.Encounter != null && MatchesRef(obs.Encounter, enc))
-                    ).ToList();
-
-                    var model = new AcpEncounterViewModel
-                    {
-                        Encounter = enc,
-                        Procedure = acpProcedure ?? linkedProcedures.FirstOrDefault(),
-                        QuestionnaireResponses = linkedQRs,
-                        Observations = linkedObs
-                    };
-                    
-                    // Parse Date
-                    if (enc.Period?.Start != null && DateTime.TryParse(enc.Period.Start, out var d))
-                    {
-                        model.Date = d;
-                    }
-                    else if (model.Procedure?.Performed is FhirDateTime fdt && DateTime.TryParse(fdt.Value, out var pd))
-                    {
-                         model.Date = pd;
-                    }
-                    else
-                    {
-                        model.Date = DateTime.MinValue;
-                    }
-                    
-                    // Parse Participants
-                    model.Participants = GetParticipants(enc, model.Procedure);
-
-                    acpEncounters.Add(model);
-                }
-            }
-
-            // 4. Identify Unlinked Questionnaires
-            unlinkedQuestionnaires = allQuestionnaireResponses
-                .Where(qr => !linkedQrIds.Contains(qr.Id))
-                .OrderByDescending(qr => qr.Authored)
-                .ToList();
+            // Compute derived properties
+            patientName = PatientHelper.GetPatientName(data.CurrentPatient ?? AppState.CurrentPatient);
+            legallyCapableText = PatientHelper.GetLegallyCapableText(data.CurrentPatient);
+            legallyCapableComment = PatientHelper.GetLegallyCapableComment(data.CurrentPatient);
+            legallyCapableClass = PatientHelper.GetLegallyCapableClass(data.CurrentPatient);
+            legallyCapableIcon = PatientHelper.GetLegallyCapableIcon(data.CurrentPatient);
         }
         catch (Exception ex)
         {
@@ -776,99 +181,27 @@
         isLoading = false;
         StateHasChanged();
     }
-    
-    private void OnGoalLoaded(Goal g)
+
+    // Modal handlers
+    private void ShowGoalHistory() => showGoalHistory = true;
+    private void CloseGoalHistory() => showGoalHistory = false;
+
+    private void HandleShowConsentHistory(TreatmentDirectiveViewModel vm)
     {
-        // Filter Logic
-        if (g.Description?.Coding?.Any(c => allowedGoalCodes.Contains(c.Code)) == true)
+        if (vm.Consent?.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code is string code)
         {
-            patientGoals.Add(g);
-        }
-    }
-    
-    private void ShowGoalHistory()
-    {
-        showGoalHistory = true;
-    }
-    
-    private void CloseGoalHistory()
-    {
-        showGoalHistory = false;
-    }
-
-    private void ProcessTreatmentDirectives(List<Consent> existingConsents)
-    {
-        permits.Clear();
-        denials.Clear();
-        others.Clear();
-
-        var activeConsents = existingConsents.Where(c => c.Status == Consent.ConsentState.Active).ToList();
-        
-        // Group by Provision Code
-        var grouped = activeConsents.GroupBy(c => c.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code ?? "Unknown").ToList();
-
-        foreach(var group in grouped)
-        {
-            var sorted = group.OrderByDescending(c => c.DateTime).ToList();
-            if(!sorted.Any()) continue;
-            var top = sorted.First();
-            
-            var vm = new TreatmentDirectiveViewModel
-            {
-                Consent = top,
-                Title = top.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Display ?? top.Provision?.Code?.FirstOrDefault()?.Text ?? "Onbekend",
-                Date = !string.IsNullOrEmpty(top.DateTime) ? DateTime.Parse(top.DateTime) : null
-            };
-
-            // Classification Logic
-            if (top.Provision?.Type == Consent.ConsentProvisionType.Permit)
-            {
-                permits.Add(vm);
-            }
-            else if (top.Provision?.Type == Consent.ConsentProvisionType.Deny)
-            {
-                denials.Add(vm);
-            }
-            else 
-            {
-                // Check extensions for "specificationOther"
-                // Heuristic: check ModifierExtension with valueString 
-                var ext = top.ModifierExtension.FirstOrDefault(e => e.Value is FhirString);
-                if (ext != null)
-                {
-                    vm.SpecificationOther = (ext.Value as FhirString).Value;
-                }
-                others.Add(vm);
-            }
+            selectedConsentTitle = vm.Title;
+            consentHistoryList = data.AllConsents
+                .Where(c => c.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code == code)
+                .OrderByDescending(c => c.DateTime)
+                .ToList();
+            showConsentHistory = true;
         }
     }
 
-    private void ProcessObservations()
-    {
-        latestObservations.Clear();
-        
-        // Filter by allowed codes
-        var relevant = allObservations.Where(o => 
-            o.Code?.Coding?.Any(c => allowedObservationCodes.Contains(c.Code)) == true
-        ).ToList();
+    private void CloseConsentHistory() => showConsentHistory = false;
 
-        // Group by Code and get latest
-        var grouped = relevant.GroupBy(o => o.Code.Coding.FirstOrDefault(c => allowedObservationCodes.Contains(c.Code))?.Code ?? "Unknown");
-        
-        foreach(var group in grouped)
-        {
-            var latest = group.OrderByDescending(o => 
-                (o.Effective as FhirDateTime)?.Value ?? o.Issued?.ToString("o") ?? ""
-            ).FirstOrDefault();
-            
-            if (latest != null)
-            {
-                latestObservations.Add(latest);
-            }
-        }
-    }
-
-    private void ShowObservationDetails(Observation obs)
+    private void HandleShowObservationDetails(Observation obs)
     {
         selectedObservation = obs;
         showObservationModal = true;
@@ -880,300 +213,19 @@
         selectedObservation = null;
     }
 
-    private void ShowConsentHistory(TreatmentDirectiveViewModel vm)
-    {
-        if (vm.Consent?.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code is string code)
-        {
-             selectedConsentTitle = vm.Title;
-             consentHistoryList = allConsents.Where(c => 
-                c.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code == code)
-                .OrderByDescending(c => c.DateTime)
-                .ToList();
-             showConsentHistory = true;
-        }
-    }
-
-    private void CloseConsentHistory()
-    {
-        showConsentHistory = false;
-    }
-    
-    private bool IsAcpProcedure(Procedure p)
-    {
-        if (p == null) return false;
-        return p.Code?.Coding?.Any(c => c.Code == "713603004") == true;
-    }
-
-    private async Task TryLoadResource<T>(string key, FhirJsonDeserializer parser, Action<T> onSuccess) where T : Resource
-    {
-         var json = await LocalStorage.GetItemAsStringAsync(key);
-         if (!string.IsNullOrEmpty(json))
-         {
-             try {
-                 var r = parser.Deserialize<T>(json);
-                 if(r != null) onSuccess(r);
-             } catch {}
-         }
-    }
-
-    private bool MatchesRef(ResourceReference reference, Resource target)
-    {
-        if (reference == null || target == null || string.IsNullOrEmpty(target.Id)) return false;
-        if (string.IsNullOrEmpty(reference.Reference)) return false;
-        // Strict match or ID match if local
-        return reference.Reference.EndsWith(target.Id) || reference.Reference.Contains($"/{target.Id}");
-    }
-
-    private async Task LoadPatientData()
-    {
-        if (AppState.CurrentPatient == null) return;
-        var keys = await LocalStorage.KeysAsync();
-        var parser = new FhirJsonDeserializer();
-        
-        var patientKey = $"Patient-{AppState.CurrentPatient.Id}";
-        var patientKeys = keys.Where(k => k.Contains(patientKey)).ToList();
-        if (patientKeys.Any())
-        {
-            var json = await LocalStorage.GetItemAsStringAsync(patientKeys.First());
-            if (!string.IsNullOrEmpty(json))
-            {
-                try { currentPatient = parser.Deserialize<Patient>(json); } catch {}
-            }
-        }
-        
-        if (currentPatient == null)
-        {
-            currentPatient = AppState.CurrentPatient;
-        }
-    }
-    
-    // Resource Fetcher for Participant Modal
-    private async Task<Resource?> FetchResource(string type, string id)
-    {
-        var parser = new FhirJsonDeserializer();
-        var keys = await LocalStorage.KeysAsync();
-        // Loose matching
-        var key = keys.FirstOrDefault(k => k.Contains(type) && k.Contains(id));
-        if (key != null)
-        {
-             var json = await LocalStorage.GetItemAsStringAsync(key);
-             if (!string.IsNullOrEmpty(json))
-             {
-                 try { return parser.Deserialize<Resource>(json); } catch { return null; }
-             }
-        }
-        return null;
-    }
-
-    // --- Participant Logic ---
-    private List<ParticipantInfo> GetParticipants(Encounter enc, Procedure? proc)
-    {
-        var list = new List<ParticipantInfo>();
-
-        if (enc?.Participant != null)
-        {
-            foreach(var p in enc.Participant)
-            {
-                if (p.Individual != null)
-                {
-                    bool isPractitioner = p.Individual.Reference?.Contains("Practitioner") == true;
-                    list.Add(new ParticipantInfo(
-                        p.Individual.Display ?? "Onbekend", 
-                        p.Individual.Reference ?? "", 
-                        isPractitioner,
-                        null
-                    ));
-                }
-            }
-        }
-        if (proc?.Performer != null)
-        {
-            foreach(var p in proc.Performer)
-            {
-                if (p.Actor != null && !list.Any(x => x.Reference == p.Actor.Reference))
-                {
-                     bool isPractitioner = p.Actor.Reference?.Contains("Practitioner") == true;
-                     list.Add(new ParticipantInfo(
-                        p.Actor.Display ?? "Onbekend", 
-                        p.Actor.Reference ?? "",
-                        isPractitioner,
-                        p.Function?.Text
-                     ));
-                }
-            }
-        }
-        return list;
-    }
-
-    private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
-    {
-        Navigation.NavigateTo($"acp/QuestionnaireResponse/{qr.Id}");
-    }
-
-    private async Task ShowParticipantDetails(ParticipantInfo info)
+    private void HandleShowParticipant(ParticipantInfo info)
     {
         selectedParticipant = new ParticipantDetail
         {
             Name = info.Display,
             Reference = info.Reference
         };
-        isResolvingParticipant = true;
-        StateHasChanged();
-
-        if (string.IsNullOrEmpty(info.Reference)) 
-        {
-            isResolvingParticipant = false;
-            return;
-        }
-
-        try
-        {
-            var parts = info.Reference.Split('/');
-            if (parts.Length < 2) return;
-            
-            var resourceType = parts[parts.Length - 2];
-            var resourceId = parts[parts.Length - 1];
-
-            var resource = await FetchResource(resourceType, resourceId);
-
-            if (resource is PractitionerRole role)
-            {
-                selectedParticipant.ResourceType = "PractitionerRole";
-                var roles = role.Code?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
-                                     .Concat(role.Code?.Select(c => c.Text) ?? Enumerable.Empty<string>())
-                                     .Where(s => !string.IsNullOrEmpty(s))
-                                     .Distinct();
-                selectedParticipant.Role = roles != null ? string.Join(", ", roles) : null;
-
-                var specialties = role.Specialty?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
-                                           .Concat(role.Specialty?.Select(c => c.Text) ?? Enumerable.Empty<string>())
-                                           .Where(s => !string.IsNullOrEmpty(s))
-                                           .Distinct();
-                selectedParticipant.Specialty = specialties != null ? string.Join(", ", specialties) : null;
-                selectedParticipant.Organization = role.Organization?.Display;
-                selectedParticipant.Telecoms = role.Telecom;
-                if (role.Practitioner?.Reference != null)
-                {
-                    var practRefParts = role.Practitioner.Reference.Split('/');
-                    if (practRefParts.Length >= 2)
-                    {
-                       var practitioner = await FetchResource("Practitioner", practRefParts.Last()) as Practitioner;
-                       if (practitioner != null)
-                       {
-                            var name = practitioner.Name?.FirstOrDefault();
-                            if (name != null)
-                            {
-                                var given = string.Join(" ", name.Given ?? new string[0]);
-                                selectedParticipant.Name = $"{given} {name.Family}".Trim();
-                            }
-                            if (practitioner.Telecom != null) selectedParticipant.Telecoms.AddRange(practitioner.Telecom);
-                       }
-                    }
-                }
-            }
-            else if (resource is RelatedPerson related)
-            {
-                selectedParticipant.ResourceType = "RelatedPerson";
-                var rels = related.Relationship?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
-                                               .Concat(related.Relationship?.Select(c => c.Text) ?? Enumerable.Empty<string>())
-                                               .Where(s => !string.IsNullOrEmpty(s))
-                                               .Distinct();
-                selectedParticipant.Relationship = rels != null ? string.Join(", ", rels) : null;
-                selectedParticipant.Telecoms = related.Telecom;
-            }
-            else if (resource is Practitioner practitioner)
-            {
-                 selectedParticipant.ResourceType = "Practitioner";
-                var name = practitioner.Name?.FirstOrDefault();
-                if (name != null)
-                {
-                    var given = string.Join(" ", name.Given ?? new string[0]);
-                    selectedParticipant.Name = $"{given} {name.Family}".Trim();
-                }
-                 selectedParticipant.Telecoms = practitioner.Telecom;
-            }
-        }
-        catch (Exception ex)
-        {
-             Console.WriteLine($"Error resolving participant: {ex.Message}");
-        }
-
-        isResolvingParticipant = false;
-        StateHasChanged();
     }
 
-    private void CloseParticipantModal()
+    private void CloseParticipantModal() => selectedParticipant = null;
+
+    private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
     {
-        selectedParticipant = null;
-    }
-
-    private string GetPatientName()
-    {
-        var patient = currentPatient ?? AppState.CurrentPatient;
-        if (patient?.Name?.FirstOrDefault() is HumanName name)
-        {
-            var given = string.Join(" ", name.Given ?? new string[0]);
-            return $"{given} {name.Family}".Trim();
-        }
-        return "Unknown";
-    }
-
-    // --- Legally Capable Utils ---
-    private (bool? isCapable, string? comment) GetLegallyCapableInfo()
-    {
-        var patient = currentPatient;
-        if (patient == null) return (null, null);
-
-        var ext = patient.Extension?.FirstOrDefault(e => 
-            e.Url == "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ext-LegallyCapable-MedicalTreatmentDecisions");
-
-        if (ext == null) return (null, null);
-
-        var capableExt = ext.Extension?.FirstOrDefault(e => e.Url == "legallyCapable");
-        var commentExt = ext.Extension?.FirstOrDefault(e => e.Url == "legallyCapableComment");
-
-        bool? capable = capableExt?.Value is FhirBoolean fb ? fb.Value : null;
-        string? comment = commentExt?.Value is FhirString fs ? fs.Value : null;
-
-        return (capable, comment);
-    }
-
-    private string GetLegallyCapableText()
-    {
-        var (capable, _) = GetLegallyCapableInfo();
-        return capable switch
-        {
-            true => "Wilsbekwaam",
-            false => "Niet wilsbekwaam",
-            null => "Status onbekend"
-        };
-    }
-
-    private string GetLegallyCapableComment()
-    {
-        var (_, comment) = GetLegallyCapableInfo();
-        return comment ?? string.Empty;
-    }
-
-    private string GetLegallyCapableClass()
-    {
-        var (capable, _) = GetLegallyCapableInfo();
-        return capable switch
-        {
-            true => "bg-success-subtle border-success text-success-emphasis",
-            false => "bg-danger-subtle border-danger text-danger-emphasis",
-            null => "bg-warning-subtle border-warning text-warning-emphasis"
-        };
-    }
-
-    private string GetLegallyCapableIcon()
-    {
-        var (capable, _) = GetLegallyCapableInfo();
-        return capable switch
-        {
-            true => "bi bi-check-circle-fill text-success",
-            false => "bi bi-x-circle-fill text-danger",
-            null => "bi bi-question-circle-fill text-warning"
-        };
+        Navigation.NavigateTo($"acp/QuestionnaireResponse/{qr.Id}");
     }
 }

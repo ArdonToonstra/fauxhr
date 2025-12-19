@@ -1,0 +1,200 @@
+@using Hl7.Fhir.Model
+@using FauxHR.Modules.ExitStrategy.Models
+@using Blazored.LocalStorage
+@using Hl7.Fhir.Serialization
+@using Task = System.Threading.Tasks.Task
+@inject ILocalStorageService LocalStorage
+
+<div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@Participant.Name</h5>
+                <button type="button" class="btn-close" @onclick="OnClose"></button>
+            </div>
+            <div class="modal-body">
+                @if (isLoading)
+                {
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary mb-2"></div>
+                        <p>Details laden...</p>
+                    </div>
+                }
+                else
+                {
+                    <dl class="row">
+                        @if (!string.IsNullOrEmpty(Participant.Role))
+                        {
+                            <dt class="col-sm-4 text-muted">Rol</dt>
+                            <dd class="col-sm-8 mb-3">@Participant.Role</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Participant.Specialty))
+                        {
+                            <dt class="col-sm-4 text-muted">Specialisme</dt>
+                            <dd class="col-sm-8 mb-3">@Participant.Specialty</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Participant.Organization))
+                        {
+                            <dt class="col-sm-4 text-muted">Organisatie</dt>
+                            <dd class="col-sm-8 mb-3">@Participant.Organization</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Participant.Relationship))
+                        {
+                            <dt class="col-sm-4 text-muted">Relatie</dt>
+                            <dd class="col-sm-8 mb-3">@Participant.Relationship</dd>
+                        }
+
+                        @if (Participant.Telecoms.Any())
+                        {
+                            <dt class="col-sm-4 text-muted">Contact</dt>
+                            <dd class="col-sm-8 mb-3">
+                                @foreach (var t in Participant.Telecoms)
+                                {
+                                    <div class="mb-1">
+                                        <i class="bi bi-@(t.System == ContactPoint.ContactPointSystem.Email ? "envelope" : "telephone") me-2"></i>
+                                        @t.Value (@t.Use)
+                                    </div>
+                                }
+                            </dd>
+                        }
+
+                        <dt class="col-sm-4 text-muted">Bron</dt>
+                        <dd class="col-sm-8">
+                            <small class="text-monospace">@Participant.ResourceType</small>
+                        </dd>
+                    </dl>
+                }
+            </div>
+            <div class="modal-footer justify-content-start bg-light">
+                <small class="text-muted w-100">
+                    <strong>Reference:</strong> @Participant.Reference
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ParticipantDetail Participant { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        await ResolveParticipantDetailsAsync();
+        
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task ResolveParticipantDetailsAsync()
+    {
+        if (string.IsNullOrEmpty(Participant.Reference))
+            return;
+
+        try
+        {
+            var parts = Participant.Reference.Split('/');
+            if (parts.Length < 2) return;
+
+            var resourceType = parts[^2];
+            var resourceId = parts[^1];
+
+            var resource = await FetchResourceAsync(resourceType, resourceId);
+
+            if (resource is PractitionerRole role)
+            {
+                Participant.ResourceType = "PractitionerRole";
+                var roles = role.Code?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                    .Concat(role.Code?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Distinct();
+                Participant.Role = roles != null ? string.Join(", ", roles) : null;
+
+                var specialties = role.Specialty?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                    .Concat(role.Specialty?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Distinct();
+                Participant.Specialty = specialties != null ? string.Join(", ", specialties) : null;
+                Participant.Organization = role.Organization?.Display;
+                Participant.Telecoms = role.Telecom;
+
+                if (role.Practitioner?.Reference != null)
+                {
+                    var practRefParts = role.Practitioner.Reference.Split('/');
+                    if (practRefParts.Length >= 2)
+                    {
+                        var practitioner = await FetchResourceAsync("Practitioner", practRefParts.Last()) as Practitioner;
+                        if (practitioner != null)
+                        {
+                            var name = practitioner.Name?.FirstOrDefault();
+                            if (name != null)
+                            {
+                                var given = string.Join(" ", name.Given ?? Array.Empty<string>());
+                                Participant.Name = $"{given} {name.Family}".Trim();
+                            }
+                            if (practitioner.Telecom != null) 
+                                Participant.Telecoms.AddRange(practitioner.Telecom);
+                        }
+                    }
+                }
+            }
+            else if (resource is RelatedPerson related)
+            {
+                Participant.ResourceType = "RelatedPerson";
+                var rels = related.Relationship?.SelectMany(c => c.Coding?.Select(coding => coding.Display ?? coding.Code) ?? Enumerable.Empty<string>())
+                    .Concat(related.Relationship?.Select(c => c.Text) ?? Enumerable.Empty<string>())
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Distinct();
+                Participant.Relationship = rels != null ? string.Join(", ", rels) : null;
+                Participant.Telecoms = related.Telecom;
+            }
+            else if (resource is Practitioner practitioner)
+            {
+                Participant.ResourceType = "Practitioner";
+                var name = practitioner.Name?.FirstOrDefault();
+                if (name != null)
+                {
+                    var given = string.Join(" ", name.Given ?? Array.Empty<string>());
+                    Participant.Name = $"{given} {name.Family}".Trim();
+                }
+                Participant.Telecoms = practitioner.Telecom;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error resolving participant: {ex.Message}");
+        }
+    }
+
+    private async Task<Resource?> FetchResourceAsync(string type, string id)
+    {
+        var parser = new FhirJsonDeserializer();
+        var keys = await LocalStorage.KeysAsync();
+        var key = keys.FirstOrDefault(k => k.Contains(type) && k.Contains(id));
+        
+        if (key != null)
+        {
+            var json = await LocalStorage.GetItemAsStringAsync(key);
+            if (!string.IsNullOrEmpty(json))
+            {
+                try 
+                { 
+                    return parser.Deserialize<Resource>(json); 
+                } 
+                catch 
+                { 
+                    return null; 
+                }
+            }
+        }
+        return null;
+    }
+}

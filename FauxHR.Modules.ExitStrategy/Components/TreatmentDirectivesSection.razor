@@ -1,0 +1,94 @@
+@using FauxHR.Modules.ExitStrategy.Models
+
+<div class="row mb-5 g-4">
+    <!-- Permit -->
+    <div class="col-md-4">
+        <h6 class="text-success fw-bold mb-3 border-bottom pb-2 border-success">
+            <i class="bi bi-check-circle-fill me-2"></i>Wel uitvoeren
+        </h6>
+        @if (Permits.Any())
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var item in Permits)
+                {
+                    <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => OnShowConsentHistory.InvokeAsync(item)">
+                        <div class="card-body p-3 border-start border-4 border-success rounded-end">
+                            <div class="fw-bold">@item.Title</div>
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <span class="text-muted small fst-italic">Geen afspraken</span>
+        }
+    </div>
+
+    <!-- Deny -->
+    <div class="col-md-4">
+        <h6 class="text-danger fw-bold mb-3 border-bottom pb-2 border-danger">
+            <i class="bi bi-x-circle-fill me-2"></i>Niet uitvoeren
+        </h6>
+        @if (Denials.Any())
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var item in Denials)
+                {
+                    <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => OnShowConsentHistory.InvokeAsync(item)">
+                        <div class="card-body p-3 border-start border-4 border-danger rounded-end">
+                            <div class="fw-bold">@item.Title</div>
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <span class="text-muted small fst-italic">Geen afspraken</span>
+        }
+    </div>
+
+    <!-- Other -->
+    <div class="col-md-4">
+        <h6 class="text-warning fw-bold mb-3 border-bottom pb-2 border-warning text-dark">
+            <i class="bi bi-question-circle-fill me-2"></i>Anders / Niet besproken
+        </h6>
+        @if (Others.Any())
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var item in Others)
+                {
+                    <div class="card border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => OnShowConsentHistory.InvokeAsync(item)">
+                        <div class="card-body p-3 border-start border-4 border-warning rounded-end">
+                            <div class="fw-bold">@item.Title</div>
+                            <div class="small text-muted mt-1">
+                                <i class="bi bi-calendar me-1"></i>@(item.Date?.ToString("d MMM yyyy") ?? "-")
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.SpecificationOther))
+                            {
+                                <div class="small text-dark mt-2 p-2 bg-light rounded fst-italic">"@item.SpecificationOther"</div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<TreatmentDirectiveViewModel> Permits { get; set; } = new();
+    [Parameter] public List<TreatmentDirectiveViewModel> Denials { get; set; } = new();
+    [Parameter] public List<TreatmentDirectiveViewModel> Others { get; set; } = new();
+    [Parameter] public EventCallback<TreatmentDirectiveViewModel> OnShowConsentHistory { get; set; }
+}

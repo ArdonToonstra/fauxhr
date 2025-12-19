@@ -1,0 +1,76 @@
+@using Hl7.Fhir.Model
+
+<div class="mb-5">
+    <h6 class="text-primary fw-bold mb-3 border-bottom pb-2 border-primary">
+        <i class="bi bi-clipboard-data-fill me-2"></i>Bevindingen &amp; Wensen
+    </h6>
+    @if (Observations.Any())
+    {
+        <div class="row g-4">
+            @foreach (var obs in Observations)
+            {
+                <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => OnShowObservationDetails.InvokeAsync(obs)">
+                        <div class="card-body p-3 border-start border-4 border-primary rounded-end">
+                            <div class="fw-bold mb-2" style="min-height: 2.5em;">
+                                @(obs.Code?.Coding?.FirstOrDefault()?.Display ?? obs.Code?.Text ?? "Onbekend item")
+                            </div>
+
+                            <div class="fw-bold mb-2">
+                                @if (obs.Value is CodeableConcept cc)
+                                {
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle text-wrap text-start">
+                                        @(cc.Coding?.FirstOrDefault()?.Display ?? cc.Text ?? "-")
+                                    </span>
+                                }
+                                else if (obs.Value is FhirString s)
+                                {
+                                    <span class="fst-italic text-muted">"@s.Value"</span>
+                                }
+                                else if (obs.Value is FhirBoolean b)
+                                {
+                                    <span class="badge @(b.Value == true ? "bg-success" : "bg-secondary")">
+                                        @(b.Value == true ? "Ja" : "Nee")
+                                    </span>
+                                }
+                                else if (obs.Value is Quantity q)
+                                {
+                                    <span class="fw-medium">@q.Value @q.Unit</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </div>
+
+                            <div class="small text-muted mt-auto pt-2 border-top">
+                                <i class="bi bi-calendar me-1"></i>
+                                @if (obs.Effective is FhirDateTime dt)
+                                {
+                                    @DateTime.Parse(dt.Value).ToString("d MMM yyyy")
+                                }
+                                else if (obs.Issued.HasValue)
+                                {
+                                    @obs.Issued.Value.ToString("d MMM yyyy")
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="text-muted small fst-italic">Geen bevindingen geregistreerd.</div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<Observation> Observations { get; set; } = new();
+    [Parameter] public EventCallback<Observation> OnShowObservationDetails { get; set; }
+}

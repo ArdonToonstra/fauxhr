@@ -19,5 +19,6 @@ builder.Services.AddScoped<FauxHR.Core.Interfaces.IFhirService, FauxHR.App.Servi
 // Modules
 builder.Services.AddScoped<FauxHR.Core.Interfaces.IIGModule, FauxHR.Modules.ExitStrategy.ExitStrategyModule>();
 builder.Services.AddScoped<FauxHR.Modules.ExitStrategy.Services.AcpDataService>();
+builder.Services.AddScoped<FauxHR.Modules.ExitStrategy.Services.AcpIntegratedDataLoader>();
 
 await builder.Build().RunAsync();

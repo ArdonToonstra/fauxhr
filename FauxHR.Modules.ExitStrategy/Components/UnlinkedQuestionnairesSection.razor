@@ -1,0 +1,45 @@
+@using Hl7.Fhir.Model
+
+<div class="mt-5 mb-5">
+    <h6 class="text-secondary fw-bold mb-3 border-bottom pb-2">
+        <i class="bi bi-file-earmark-text me-2"></i>Overige Formulieren
+    </h6>
+    @if (Questionnaires.Any())
+    {
+        <div class="row g-3">
+            @foreach (var qr in Questionnaires)
+            {
+                <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm lift-hover cursor-pointer" @onclick="() => OnShowQuestionnaire.InvokeAsync(qr)">
+                        <div class="card-body p-3 border-top border-4 border-secondary">
+                            <div class="fw-bold text-truncate" title="@(qr.Questionnaire ?? "Onbekend formulier")">
+                                @(qr.Questionnaire?.Split('/').Last() ?? "Formulier")
+                            </div>
+                            <div class="small text-muted mt-2">
+                                <i class="bi bi-calendar me-1"></i>
+                                @if (!string.IsNullOrEmpty(qr.Authored))
+                                {
+                                    @DateTime.Parse(qr.Authored).ToString("d MMM yyyy")
+                                }
+                                else
+                                {
+                                    <span>Datum onbekend</span>
+                                }
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge bg-light text-secondary border">
+                                    @(qr.Status?.ToString() ?? "Status onbekend")
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<QuestionnaireResponse> Questionnaires { get; set; } = new();
+    [Parameter] public EventCallback<QuestionnaireResponse> OnShowQuestionnaire { get; set; }
+}
