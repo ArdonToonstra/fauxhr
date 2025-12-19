@@ -1,0 +1,18 @@
+.practitioner-context-link {
+    display: flex;
+    align-items: center;
+}
+
+.practitioner-badge {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background-color: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}

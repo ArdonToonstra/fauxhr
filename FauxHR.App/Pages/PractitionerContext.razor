@@ -1,0 +1,263 @@
+@page "/practitioner-context"
+@using FauxHR.Core.Services
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
+@inject AppState AppState
+@inject NavigationManager Navigation
+
+<PageTitle>Practitioner Context</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-primary mb-1">
+                <i class="bi bi-person-badge me-3"></i>Zorgverlener Context
+            </h2>
+            <p class="text-muted small mb-0">Huidige ingelogde zorgverlener</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="GoBack">
+            <i class="bi bi-arrow-left me-2"></i>Terug
+        </button>
+    </div>
+
+    @if (AppState.CurrentPractitioner == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Geen zorgverlener context geladen.
+        </div>
+    }
+    else
+    {
+        <!-- Practitioner Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-start mb-4">
+                    <div class="bg-primary-subtle text-primary rounded-circle p-3 me-3" style="width: 64px; height: 64px;">
+                        <i class="bi bi-person-fill fs-2"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h4 class="mb-1">@GetPractitionerName()</h4>
+                        @if (AppState.CurrentPractitionerRole != null)
+                        {
+                            <div class="text-muted">
+                                @GetSpecialty()
+                            </div>
+                        }
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="bi bi-person-check me-1"></i>Actief
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <hr/>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold mb-3">IDENTIFICATIE</h6>
+                        @if (AppState.CurrentPractitioner.Identifier.Any())
+                        {
+                            @foreach (var identifier in AppState.CurrentPractitioner.Identifier)
+                            {
+                                <div class="mb-2">
+                                    <small class="text-muted d-block">@identifier.System</small>
+                                    <div class="fw-medium">@identifier.Value</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted small">Geen identificatie</div>
+                        }
+                    </div>
+
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold mb-3">CONTACTGEGEVENS</h6>
+                        @if (GetTelecoms().Any())
+                        {
+                            @foreach (var telecom in GetTelecoms())
+                            {
+                                <div class="mb-2">
+                                    <i class="bi bi-@GetTelecomIcon(telecom.System) me-2"></i>
+                                    @if (telecom.System == ContactPoint.ContactPointSystem.Email)
+                                    {
+                                        <a href="mailto:@telecom.Value">@telecom.Value</a>
+                                    }
+                                    else if (telecom.System == ContactPoint.ContactPointSystem.Phone)
+                                    {
+                                        <a href="tel:@telecom.Value">@telecom.Value</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@telecom.Value</span>
+                                    }
+                                    @if (telecom.Use.HasValue)
+                                    {
+                                        <small class="text-muted ms-2">(@telecom.Use)</small>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted small">Geen contactgegevens</div>
+                        }
+                    </div>
+
+                    @if (AppState.CurrentPractitioner.Address.Any())
+                    {
+                        <div class="col-12">
+                            <h6 class="text-muted small fw-bold mb-3">ADRES</h6>
+                            @foreach (var address in AppState.CurrentPractitioner.Address)
+                            {
+                                <div class="mb-2">
+                                    @if (address.Line.Any())
+                                    {
+                                        @foreach (var line in address.Line)
+                                        {
+                                            <div>@line</div>
+                                        }
+                                    }
+                                    <div>
+                                        @address.PostalCode @address.City
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(address.Country))
+                                    {
+                                        <div>@address.Country</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="col-md-6">
+                        <h6 class="text-muted small fw-bold mb-3">GESLACHT</h6>
+                        <div>
+                            @if (AppState.CurrentPractitioner.Gender.HasValue)
+                            {
+                                <span class="badge bg-info-subtle text-info-emphasis">
+                                    @AppState.CurrentPractitioner.Gender.Value.ToString()
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">Niet opgegeven</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-3">
+                    <i class="bi bi-gear me-2"></i>Acties
+                </h5>
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Het wijzigen van de zorgverlener context is momenteel niet geïmplementeerd.
+                    Deze functionaliteit wordt gebruikt bij het aanmaken van nieuwe ACP-gegevens.
+                </div>
+                <button class="btn btn-outline-primary" disabled>
+                    <i class="bi bi-arrow-repeat me-2"></i>Wissel van zorgverlener
+                </button>
+            </div>
+        </div>
+
+        <!-- Debug Info -->
+        <div class="card border-0 bg-light mt-4">
+            <div class="card-body p-3">
+                <details>
+                    <summary class="text-muted small fw-bold" style="cursor: pointer;">
+                        <i class="bi bi-code-slash me-2"></i>DEBUG INFO
+                    </summary>
+                    <div class="mt-3">
+                        <div class="mb-2">
+                            <small class="text-muted d-block">Practitioner ID:</small>
+                            <code class="small">@AppState.CurrentPractitioner.Id</code>
+                        </div>
+                        @if (AppState.CurrentPractitionerRole != null)
+                        {
+                            <div class="mb-2">
+                                <small class="text-muted d-block">PractitionerRole ID:</small>
+                                <code class="small">@AppState.CurrentPractitionerRole.Id</code>
+                            </div>
+                        }
+                    </div>
+                </details>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private string GetPractitionerName()
+    {
+        if (AppState.CurrentPractitioner?.Name?.FirstOrDefault() is HumanName name)
+        {
+            var prefix = name.Prefix.Any() ? string.Join(" ", name.Prefix) + " " : "";
+            var given = string.Join(" ", name.Given ?? Array.Empty<string>());
+            return $"{prefix}{given} {name.Family}".Trim();
+        }
+        return "Unknown";
+    }
+
+    private string GetSpecialty()
+    {
+        if (AppState.CurrentPractitionerRole?.Specialty != null)
+        {
+            var specialties = AppState.CurrentPractitionerRole.Specialty
+                .SelectMany(s => s.Coding ?? new List<Coding>())
+                .Select(c => c.Display ?? c.Code)
+                .Where(d => !string.IsNullOrEmpty(d));
+            
+            return string.Join(", ", specialties);
+        }
+        return "Geen specialisme opgegeven";
+    }
+
+    private List<ContactPoint> GetTelecoms()
+    {
+        var telecoms = new List<ContactPoint>();
+        
+        if (AppState.CurrentPractitioner?.Telecom != null)
+        {
+            telecoms.AddRange(AppState.CurrentPractitioner.Telecom);
+        }
+        
+        // Add role telecoms if not duplicate
+        if (AppState.CurrentPractitionerRole?.Telecom != null)
+        {
+            foreach (var telecom in AppState.CurrentPractitionerRole.Telecom)
+            {
+                if (!telecoms.Any(t => t.Value == telecom.Value))
+                {
+                    telecoms.Add(telecom);
+                }
+            }
+        }
+        
+        return telecoms;
+    }
+
+    private string GetTelecomIcon(ContactPoint.ContactPointSystem? system)
+    {
+        return system switch
+        {
+            ContactPoint.ContactPointSystem.Phone => "telephone",
+            ContactPoint.ContactPointSystem.Email => "envelope",
+            ContactPoint.ContactPointSystem.Fax => "printer",
+            ContactPoint.ContactPointSystem.Url => "globe",
+            _ => "chat"
+        };
+    }
+}

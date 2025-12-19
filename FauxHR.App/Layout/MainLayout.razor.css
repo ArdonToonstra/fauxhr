@@ -9,7 +9,21 @@ main {
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background: white;
+    border-right: 1px solid #e9ecef;
+}
+
+/* Mobile: hide sidebar completely by default */
+@media (max-width: 640.98px) {
+    .sidebar {
+        display: none;
+    }
+    
+    .mobile-header {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+    }
 }
 
 .top-row {

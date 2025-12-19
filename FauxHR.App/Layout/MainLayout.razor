@@ -6,6 +6,16 @@
     </div>
 
     <main>
+        <!-- Mobile header with logo and menu -->
+        <div class="mobile-header d-flex d-md-none align-items-center justify-content-between px-3 py-2 bg-white border-bottom">
+            <a href="" class="d-flex align-items-center text-decoration-none">
+                <img src="images/logo.png" alt="FauxHR" height="40" />
+            </a>
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav" aria-controls="mobileNav">
+                <i class="bi bi-list fs-4"></i>
+            </button>
+        </div>
+        
         <div class="top-row px-4 d-flex justify-content-end align-items-center gap-3">
             <FauxHR.App.Components.PatientStatus />
         </div>
@@ -14,6 +24,19 @@
             @Body
         </article>
     </main>
+</div>
+
+<!-- Mobile offcanvas menu -->
+<div class="offcanvas offcanvas-start bg-white" tabindex="-1" id="mobileNav" aria-labelledby="mobileNavLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="mobileNavLabel">
+            <img src="images/logo.png" alt="FauxHR" height="40" />
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <NavMenu />
+    </div>
 </div>
 
 @code {

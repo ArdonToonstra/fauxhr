@@ -1,0 +1,240 @@
+@page "/acp/viewer"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.ExitStrategy.Services
+@using FauxHR.Modules.ExitStrategy.Models
+@using FauxHR.Modules.ExitStrategy.Components
+@using FauxHR.Modules.ExitStrategy.Helpers
+@using Hl7.Fhir.Model
+@using Blazored.LocalStorage
+@using Task = System.Threading.Tasks.Task
+@inject AppState AppState
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Navigation
+@inject AcpIntegratedDataLoader DataLoader
+
+<PageTitle>ACP - Viewer</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Header with navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-primary mb-1">
+                <i class="bi bi-eye me-3"></i>Advance Care Planning - Bekijken
+            </h2>
+            <p class="text-muted small mb-0">Overzicht van alle geregistreerde ACP-informatie</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success" @onclick='() => Navigation.NavigateTo("acp/creator")'>
+                <i class="bi bi-plus-circle me-2"></i>Nieuw registreren
+            </button>
+            <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("acp/overview")'>
+                <i class="bi bi-arrow-left me-2"></i>Terug naar overzicht
+            </button>
+        </div>
+    </div>
+
+    @if (AppState.CurrentPatient == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Geen patiënt geselecteerd. Selecteer een patiënt op het Dashboard.
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="loading-progress">
+                <svg>
+                    <circle r="40%" cx="50%" cy="50%" />
+                    <circle r="40%" cx="50%" cy="50%" />
+                </svg>
+            </div>
+            <p class="mt-3 text-muted">ACP dossiers laden...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Patient Header Info -->
+        <PatientHeaderInfo 
+            PatientName="@patientName"
+            LatestGoal="@data.LatestGoal"
+            OnShowGoalHistory="@ShowGoalHistory"
+            LegallyCapableText="@legallyCapableText"
+            LegallyCapableComment="@legallyCapableComment"
+            LegallyCapableClass="@legallyCapableClass"
+            LegallyCapableIcon="@legallyCapableIcon" />
+
+        <!-- Treatment Directives / Behandelwensen -->
+        <TreatmentDirectivesSection 
+            Permits="@data.Permits"
+            Denials="@data.Denials"
+            Others="@data.Others"
+            OnShowConsentHistory="@HandleShowConsentHistory" />
+
+        <!-- Observations / Bevindingen & Wensen -->
+        <ObservationsSection 
+            Observations="@data.LatestObservations"
+            OnShowObservationDetails="@HandleShowObservationDetails" />
+
+        @if (!data.AcpEncounters.Any())
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Geen ACP gesprekken gevonden voor deze patiënt.
+                <button class="btn btn-sm btn-primary ms-3" @onclick='() => Navigation.NavigateTo("acp/creator")'>
+                    <i class="bi bi-plus me-1"></i>Eerste gesprek registreren
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- Timeline / Encounter List -->
+            <div class="acp-timeline">
+                @foreach (var encounterModel in data.AcpEncounters.OrderByDescending(e => e.Date))
+                {
+                    <AcpEncounterCard 
+                        Model="@encounterModel"
+                        OnShowParticipant="@HandleShowParticipant"
+                        OnShowQuestionnaire="@ShowQuestionnaireResponse" />
+                }
+            </div>
+        }
+
+        <!-- Unlinked Questionnaires / Overige Formulieren -->
+        @if (data.UnlinkedQuestionnaires.Any())
+        {
+            <UnlinkedQuestionnairesSection 
+                Questionnaires="@data.UnlinkedQuestionnaires"
+                OnShowQuestionnaire="@ShowQuestionnaireResponse" />
+        }
+    }
+</div>
+
+<!-- Modals -->
+@if (showGoalHistory)
+{
+    <GoalHistoryModal 
+        Goals="@data.PatientGoals"
+        OnClose="@CloseGoalHistory" />
+}
+
+@if (showConsentHistory)
+{
+    <ConsentHistoryModal 
+        Title="@selectedConsentTitle"
+        Consents="@consentHistoryList"
+        OnClose="@CloseConsentHistory" />
+}
+
+@if (showObservationModal && selectedObservation != null)
+{
+    <ObservationDetailsModal 
+        Observation="@selectedObservation"
+        OnClose="@CloseObservationModal" />
+}
+
+@if (selectedParticipant != null)
+{
+    <ParticipantDetailsModal 
+        Participant="@selectedParticipant"
+        OnClose="@CloseParticipantModal" />
+}
+
+@code {
+    private bool isLoading = true;
+    private AcpIntegratedData data = new();
+    
+    // Computed properties
+    private string patientName = "Unknown";
+    private string legallyCapableText = "Status onbekend";
+    private string legallyCapableComment = "";
+    private string legallyCapableClass = "bg-warning-subtle border-warning text-warning-emphasis";
+    private string legallyCapableIcon = "bi bi-question-circle-fill text-warning";
+
+    // Modal state
+    private bool showGoalHistory = false;
+    private bool showConsentHistory = false;
+    private bool showObservationModal = false;
+    private List<Consent> consentHistoryList = new();
+    private string selectedConsentTitle = "";
+    private Observation? selectedObservation;
+    private ParticipantDetail? selectedParticipant;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAcpDataAsync();
+    }
+
+    private async Task LoadAcpDataAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            if (AppState.CurrentPatient == null) return;
+
+            data = await DataLoader.LoadDataAsync(AppState.CurrentPatient);
+            
+            // Compute derived properties
+            patientName = PatientHelper.GetPatientName(data.CurrentPatient ?? AppState.CurrentPatient);
+            legallyCapableText = PatientHelper.GetLegallyCapableText(data.CurrentPatient);
+            legallyCapableComment = PatientHelper.GetLegallyCapableComment(data.CurrentPatient);
+            legallyCapableClass = PatientHelper.GetLegallyCapableClass(data.CurrentPatient);
+            legallyCapableIcon = PatientHelper.GetLegallyCapableIcon(data.CurrentPatient);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading ACP data: {ex.Message}");
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    // Modal handlers
+    private void ShowGoalHistory() => showGoalHistory = true;
+    private void CloseGoalHistory() => showGoalHistory = false;
+
+    private void HandleShowConsentHistory(TreatmentDirectiveViewModel vm)
+    {
+        if (vm.Consent?.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code is string code)
+        {
+            selectedConsentTitle = vm.Title;
+            consentHistoryList = data.AllConsents
+                .Where(c => c.Provision?.Code?.FirstOrDefault()?.Coding?.FirstOrDefault()?.Code == code)
+                .OrderByDescending(c => c.DateTime)
+                .ToList();
+            showConsentHistory = true;
+        }
+    }
+
+    private void CloseConsentHistory() => showConsentHistory = false;
+
+    private void HandleShowObservationDetails(Observation obs)
+    {
+        selectedObservation = obs;
+        showObservationModal = true;
+    }
+
+    private void CloseObservationModal()
+    {
+        showObservationModal = false;
+        selectedObservation = null;
+    }
+
+    private void HandleShowParticipant(ParticipantInfo info)
+    {
+        selectedParticipant = new ParticipantDetail
+        {
+            Name = info.Display,
+            Reference = info.Reference
+        };
+    }
+
+    private void CloseParticipantModal() => selectedParticipant = null;
+
+    private void ShowQuestionnaireResponse(QuestionnaireResponse qr)
+    {
+        Navigation.NavigateTo($"acp/QuestionnaireResponse/{qr.Id}");
+    }
+}

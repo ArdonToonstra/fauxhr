@@ -1,0 +1,426 @@
+@page "/acp/creator"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.ExitStrategy.Helpers
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
+@inject AppState AppState
+@inject NavigationManager Navigation
+
+<PageTitle>ACP - Registreren</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-success mb-1">
+                <i class="bi bi-plus-circle me-3"></i>Advance Care Planning - Registreren
+            </h2>
+            <p class="text-muted small mb-0">Registreer nieuw ACP-gesprek en wensen</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("acp/viewer")'>
+                <i class="bi bi-eye me-2"></i>Naar viewer
+            </button>
+            <button class="btn btn-outline-secondary" @onclick='() => Navigation.NavigateTo("acp/overview")'>
+                <i class="bi bi-arrow-left me-2"></i>Terug
+            </button>
+        </div>
+    </div>
+
+    @if (AppState.CurrentPatient == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Geen patiënt geselecteerd. Selecteer eerst een patiënt op het Dashboard.
+        </div>
+    }
+    else
+    {
+        <!-- Patient Info Card -->
+        <div class="card border-0 shadow-sm mb-4 bg-light">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary-subtle text-primary rounded-circle p-2 me-3">
+                        <i class="bi bi-person-vcard fs-5"></i>
+                    </div>
+                    <div>
+                        <strong>Patiënt:</strong> @patientName
+                        <span class="badge bg-info ms-2">@(AppState.CurrentPatient.Id)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "encounter" ? "active" : "")" 
+                        @onclick='() => activeTab = "encounter"'>
+                    <i class="bi bi-chat-dots me-2"></i>ACP Gesprek
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "goal" ? "active" : "")" 
+                        @onclick='() => activeTab = "goal"'>
+                    <i class="bi bi-flag me-2"></i>Behandeldoel
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "consent" ? "active" : "")" 
+                        @onclick='() => activeTab = "consent"'>
+                    <i class="bi bi-clipboard-check me-2"></i>Behandelwens
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(activeTab == "observation" ? "active" : "")" 
+                        @onclick='() => activeTab = "observation"'>
+                    <i class="bi bi-clipboard-data me-2"></i>Bevinding
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            @if (activeTab == "encounter")
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-chat-dots text-primary me-2"></i>
+                            Nieuw ACP Gesprek Registreren
+                        </h5>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Registreer hier een nieuw Advance Care Planning gesprek met de patiënt.
+                        </div>
+
+                        <form>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Datum gesprek *</label>
+                                    <input type="date" class="form-control" @bind="encounterDate" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Status</label>
+                                    <select class="form-select" @bind="encounterStatus">
+                                        <option value="finished">Afgerond</option>
+                                        <option value="in-progress">Lopend</option>
+                                        <option value="planned">Gepland</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Deelnemers</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" placeholder="Zoek practitioner of gerelateerd persoon..." />
+                                        <button class="btn btn-outline-primary" type="button">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Voeg zorgverleners of naasten toe die aanwezig waren bij het gesprek</small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Notities</label>
+                                    <textarea class="form-control" rows="4" @bind="encounterNotes" placeholder="Algemene notities over het gesprek..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="button" class="btn btn-success" @onclick="SaveEncounter">
+                                    <i class="bi bi-save me-2"></i>Opslaan
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "goal")
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-flag text-primary me-2"></i>
+                            Behandeldoel Registreren
+                        </h5>
+
+                        <form>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Behandeldoel *</label>
+                                    <select class="form-select" @bind="goalCode">
+                                        <option value="">-- Selecteer behandeldoel --</option>
+                                        <option value="385987000">Genezen (Cure)</option>
+                                        <option value="1351964001">Levensverlenging (Life-prolonging)</option>
+                                        <option value="713148004">Palliatief (Palliation)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Status</label>
+                                    <select class="form-select" @bind="goalStatus">
+                                        <option value="active">Actief</option>
+                                        <option value="completed">Voltooid</option>
+                                        <option value="cancelled">Geannuleerd</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Datum</label>
+                                    <input type="date" class="form-control" @bind="goalDate" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Toelichting</label>
+                                    <textarea class="form-control" rows="3" @bind="goalNotes" placeholder="Eventuele toelichting..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="button" class="btn btn-success" @onclick="SaveGoal">
+                                    <i class="bi bi-save me-2"></i>Opslaan
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "consent")
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-clipboard-check text-primary me-2"></i>
+                            Behandelwens Registreren
+                        </h5>
+
+                        <form>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Type behandeling *</label>
+                                    <select class="form-select" @bind="consentTreatmentType">
+                                        <option value="">-- Selecteer behandeling --</option>
+                                        <option value="reanimation">Reanimatie</option>
+                                        <option value="artificial-respiration">Kunstmatige beademing</option>
+                                        <option value="artificial-nutrition">Kunstmatige voeding</option>
+                                        <option value="icu-admission">IC-opname</option>
+                                        <option value="other">Anders</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Besluit *</label>
+                                    <select class="form-select" @bind="consentDecision">
+                                        <option value="permit">Wel uitvoeren</option>
+                                        <option value="deny">Niet uitvoeren</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Datum</label>
+                                    <input type="date" class="form-control" @bind="consentDate" />
+                                </div>
+                                @if (consentTreatmentType == "other")
+                                {
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold">Specificatie</label>
+                                        <input type="text" class="form-control" @bind="consentOtherSpecification" placeholder="Specificeer de behandeling..." />
+                                    </div>
+                                }
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Toelichting</label>
+                                    <textarea class="form-control" rows="3" @bind="consentNotes" placeholder="Eventuele toelichting..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="button" class="btn btn-success" @onclick="SaveConsent">
+                                    <i class="bi bi-save me-2"></i>Opslaan
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "observation")
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-clipboard-data text-primary me-2"></i>
+                            Bevinding Registreren
+                        </h5>
+
+                        <form>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Type bevinding *</label>
+                                    <select class="form-select" @bind="observationType">
+                                        <option value="">-- Selecteer type --</option>
+                                        <option value="153851000146100">Wilsbekwaamheid medische beslissingen</option>
+                                        <option value="395091006">Communicatiebeperkingen</option>
+                                        <option value="340171000146104">Levensoverwegingen</option>
+                                        <option value="247751003">Zorgen/angsten</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Waarde</label>
+                                    <input type="text" class="form-control" @bind="observationValue" placeholder="Waarde of omschrijving..." />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Datum</label>
+                                    <input type="date" class="form-control" @bind="observationDate" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Notities</label>
+                                    <textarea class="form-control" rows="3" @bind="observationNotes" placeholder="Aanvullende notities..."></textarea>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="button" class="btn btn-success" @onclick="SaveObservation">
+                                    <i class="bi bi-save me-2"></i>Opslaan
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
+                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Success Message -->
+        @if (showSuccessMessage)
+        {
+            <div class="alert alert-success alert-dismissible fade show mt-4" role="alert">
+                <i class="bi bi-check-circle me-2"></i>
+                <strong>Opgeslagen!</strong> De gegevens zijn succesvol opgeslagen.
+                <button type="button" class="btn-close" @onclick="() => showSuccessMessage = false"></button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string patientName = "Unknown";
+    private string activeTab = "encounter";
+    private bool showSuccessMessage = false;
+
+    // Encounter fields
+    private DateTime encounterDate = DateTime.Today;
+    private string encounterStatus = "finished";
+    private string encounterNotes = "";
+
+    // Goal fields
+    private string goalCode = "";
+    private string goalStatus = "active";
+    private DateTime goalDate = DateTime.Today;
+    private string goalNotes = "";
+
+    // Consent fields
+    private string consentTreatmentType = "";
+    private string consentDecision = "permit";
+    private DateTime consentDate = DateTime.Today;
+    private string consentOtherSpecification = "";
+    private string consentNotes = "";
+
+    // Observation fields
+    private string observationType = "";
+    private string observationValue = "";
+    private DateTime observationDate = DateTime.Today;
+    private string observationNotes = "";
+
+    protected override void OnInitialized()
+    {
+        if (AppState.CurrentPatient != null)
+        {
+            patientName = PatientHelper.GetPatientName(AppState.CurrentPatient);
+        }
+    }
+
+    private async Task SaveEncounter()
+    {
+        // TODO: Implement FHIR Encounter creation and POST to server
+        Console.WriteLine($"Saving encounter: {encounterDate}, {encounterStatus}");
+        showSuccessMessage = true;
+        ResetForm();
+        StateHasChanged();
+        await Task.Delay(3000);
+        showSuccessMessage = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveGoal()
+    {
+        // TODO: Implement FHIR Goal creation and POST to server
+        Console.WriteLine($"Saving goal: {goalCode}, {goalStatus}");
+        showSuccessMessage = true;
+        ResetForm();
+        StateHasChanged();
+        await Task.Delay(3000);
+        showSuccessMessage = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveConsent()
+    {
+        // TODO: Implement FHIR Consent creation and POST to server
+        Console.WriteLine($"Saving consent: {consentTreatmentType}, {consentDecision}");
+        showSuccessMessage = true;
+        ResetForm();
+        StateHasChanged();
+        await Task.Delay(3000);
+        showSuccessMessage = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveObservation()
+    {
+        // TODO: Implement FHIR Observation creation and POST to server
+        Console.WriteLine($"Saving observation: {observationType}, {observationValue}");
+        showSuccessMessage = true;
+        ResetForm();
+        StateHasChanged();
+        await Task.Delay(3000);
+        showSuccessMessage = false;
+        StateHasChanged();
+    }
+
+    private void ResetForm()
+    {
+        // Reset fields based on active tab
+        if (activeTab == "encounter")
+        {
+            encounterDate = DateTime.Today;
+            encounterStatus = "finished";
+            encounterNotes = "";
+        }
+        else if (activeTab == "goal")
+        {
+            goalCode = "";
+            goalStatus = "active";
+            goalDate = DateTime.Today;
+            goalNotes = "";
+        }
+        else if (activeTab == "consent")
+        {
+            consentTreatmentType = "";
+            consentDecision = "permit";
+            consentDate = DateTime.Today;
+            consentOtherSpecification = "";
+            consentNotes = "";
+        }
+        else if (activeTab == "observation")
+        {
+            observationType = "";
+            observationValue = "";
+            observationDate = DateTime.Today;
+            observationNotes = "";
+        }
+    }
+}

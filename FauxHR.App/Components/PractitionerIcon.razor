@@ -1,0 +1,49 @@
+@using FauxHR.Core.Services
+@using Hl7.Fhir.Model
+@inject AppState AppState
+@implements IDisposable
+
+@if (AppState.CurrentPractitioner != null)
+{
+    <div class="nav-item px-3">
+        <NavLink class="nav-link practitioner-context-link" href="practitioner-context" data-bs-dismiss="offcanvas" title="@GetPractitionerName()">
+            <span class="bi bi-person-fill me-3" aria-hidden="true"></span>
+            <span class="flex-grow-1">Practitioner</span>
+            <span class="practitioner-badge">@GetPractitionerInitials()</span>
+        </NavLink>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+
+    private string GetPractitionerName()
+    {
+        if (AppState.CurrentPractitioner?.Name?.FirstOrDefault() is HumanName name)
+        {
+            var prefix = name.Prefix.Any() ? string.Join(" ", name.Prefix) + " " : "";
+            var given = string.Join(" ", name.Given ?? Array.Empty<string>());
+            return $"{prefix}{given} {name.Family}".Trim();
+        }
+        return "Practitioner";
+    }
+
+    private string GetPractitionerInitials()
+    {
+        if (AppState.CurrentPractitioner?.Name?.FirstOrDefault() is HumanName name)
+        {
+            var givenInitial = name.Given?.FirstOrDefault()?.FirstOrDefault().ToString() ?? "";
+            var familyInitial = name.Family?.FirstOrDefault().ToString() ?? "";
+            return $"{givenInitial}{familyInitial}".ToUpper();
+        }
+        return "?";
+    }
+}

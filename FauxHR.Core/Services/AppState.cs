@@ -8,6 +8,8 @@ public class AppState
     public string CurrentServerUrl { get; private set; } = "https://server.fire.ly"; 
     
     public Patient? CurrentPatient { get; private set; }
+    public Practitioner? CurrentPractitioner { get; private set; }
+    public PractitionerRole? CurrentPractitionerRole { get; private set; }
     
     // Reference Resolution Settings
     public bool EnableReferenceResolution { get; private set; } = true;
@@ -54,6 +56,16 @@ public class AppState
         if (CurrentPatient?.Id != patient?.Id)
         {
             CurrentPatient = patient;
+            NotifyStateChanged();
+        }
+    }
+    
+    public void SetPractitioner(Practitioner? practitioner, PractitionerRole? role = null)
+    {
+        if (CurrentPractitioner?.Id != practitioner?.Id)
+        {
+            CurrentPractitioner = practitioner;
+            CurrentPractitionerRole = role;
             NotifyStateChanged();
         }
     }
