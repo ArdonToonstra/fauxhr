@@ -11,12 +11,12 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="display-6 fw-bold text-primary mb-1">
-                <i class="bi bi-person-badge me-3"></i>Zorgverlener Context
+                <i class="bi bi-person-badge me-3"></i>Practitioner Context
             </h2>
-            <p class="text-muted small mb-0">Huidige ingelogde zorgverlener</p>
+            <p class="text-muted small mb-0">Current logged-in practitioner</p>
         </div>
         <button class="btn btn-outline-secondary" @onclick="GoBack">
-            <i class="bi bi-arrow-left me-2"></i>Terug
+            <i class="bi bi-arrow-left me-2"></i>Back
         </button>
     </div>
 
@@ -24,7 +24,7 @@
     {
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            Geen zorgverlener context geladen.
+            No practitioner context loaded.
         </div>
     }
     else
@@ -46,7 +46,7 @@
                         }
                         <div class="mt-2">
                             <span class="badge bg-success">
-                                <i class="bi bi-person-check me-1"></i>Actief
+                                <i class="bi bi-person-check me-1"></i>Active
                             </span>
                         </div>
                     </div>
@@ -56,7 +56,7 @@
 
                 <div class="row g-4">
                     <div class="col-md-6">
-                        <h6 class="text-muted small fw-bold mb-3">IDENTIFICATIE</h6>
+                        <h6 class="text-muted small fw-bold mb-3">IDENTIFICATION</h6>
                         @if (AppState.CurrentPractitioner.Identifier.Any())
                         {
                             @foreach (var identifier in AppState.CurrentPractitioner.Identifier)
@@ -69,12 +69,12 @@
                         }
                         else
                         {
-                            <div class="text-muted small">Geen identificatie</div>
+                            <div class="text-muted small">No identification</div>
                         }
                     </div>
 
                     <div class="col-md-6">
-                        <h6 class="text-muted small fw-bold mb-3">CONTACTGEGEVENS</h6>
+                        <h6 class="text-muted small fw-bold mb-3">CONTACT DETAILS</h6>
                         @if (GetTelecoms().Any())
                         {
                             @foreach (var telecom in GetTelecoms())
@@ -102,14 +102,14 @@
                         }
                         else
                         {
-                            <div class="text-muted small">Geen contactgegevens</div>
+                            <div class="text-muted small">No contact details</div>
                         }
                     </div>
 
                     @if (AppState.CurrentPractitioner.Address.Any())
                     {
                         <div class="col-12">
-                            <h6 class="text-muted small fw-bold mb-3">ADRES</h6>
+                            <h6 class="text-muted small fw-bold mb-3">ADDRESS</h6>
                             @foreach (var address in AppState.CurrentPractitioner.Address)
                             {
                                 <div class="mb-2">
@@ -133,7 +133,7 @@
                     }
 
                     <div class="col-md-6">
-                        <h6 class="text-muted small fw-bold mb-3">GESLACHT</h6>
+                        <h6 class="text-muted small fw-bold mb-3">GENDER</h6>
                         <div>
                             @if (AppState.CurrentPractitioner.Gender.HasValue)
                             {
@@ -143,7 +143,7 @@
                             }
                             else
                             {
-                                <span class="text-muted small">Niet opgegeven</span>
+                                <span class="text-muted small">Not specified</span>
                             }
                         </div>
                     </div>
@@ -155,15 +155,15 @@
         <div class="card border-0 shadow-sm">
             <div class="card-body p-4">
                 <h5 class="card-title mb-3">
-                    <i class="bi bi-gear me-2"></i>Acties
+                    <i class="bi bi-gear me-2"></i>Actions
                 </h5>
                 <div class="alert alert-info mb-3">
                     <i class="bi bi-info-circle me-2"></i>
-                    Het wijzigen van de zorgverlener context is momenteel niet geïmplementeerd.
-                    Deze functionaliteit wordt gebruikt bij het aanmaken van nieuwe ACP-gegevens.
+                    Changing the practitioner context is currently not implemented.
+                    This functionality is used when creating new ACP data.
                 </div>
                 <button class="btn btn-outline-primary" disabled>
-                    <i class="bi bi-arrow-repeat me-2"></i>Wissel van zorgverlener
+                    <i class="bi bi-arrow-repeat me-2"></i>Switch Practitioner
                 </button>
             </div>
         </div>
@@ -222,7 +222,7 @@
             
             return string.Join(", ", specialties);
         }
-        return "Geen specialisme opgegeven";
+        return "No specialty specified";
     }
 
     private List<ContactPoint> GetTelecoms()

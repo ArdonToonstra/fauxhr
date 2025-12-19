@@ -24,22 +24,12 @@ public class PractitionerContextService
 
     public async Task InitializeDefaultPractitionerAsync()
     {
-        // Try to load from local storage first
-        var storedPractitioner = await LoadFromStorageAsync();
+        // Always load the default practitioner (updated J.H.R. Peters)
+        var defaultPractitioner = GetDefaultPractitioner();
+        var defaultRole = GetDefaultPractitionerRole();
         
-        if (storedPractitioner.practitioner != null)
-        {
-            _appState.SetPractitioner(storedPractitioner.practitioner, storedPractitioner.role);
-        }
-        else
-        {
-            // Load default practitioner
-            var defaultPractitioner = GetDefaultPractitioner();
-            var defaultRole = GetDefaultPractitionerRole();
-            
-            await SaveToStorageAsync(defaultPractitioner, defaultRole);
-            _appState.SetPractitioner(defaultPractitioner, defaultRole);
-        }
+        await SaveToStorageAsync(defaultPractitioner, defaultRole);
+        _appState.SetPractitioner(defaultPractitioner, defaultRole);
     }
 
     public async Task SetPractitionerAsync(Practitioner practitioner, PractitionerRole? role = null)
@@ -92,16 +82,20 @@ public class PractitionerContextService
     {
         var json = @"{
   ""resourceType"": ""Practitioner"",
-  ""id"": ""nl-core-TreatmentDirective2-01-Practitioner-01"",
+  ""id"": ""nl-core-HealthProfessional-Practitioner-01"",
   ""meta"": {
     ""profile"": [
       ""http://nictiz.nl/fhir/StructureDefinition/nl-core-HealthProfessional-Practitioner""
     ]
   },
+  ""text"": {
+    ""status"": ""extensions"",
+    ""div"": ""<div xmlns=\""http://www.w3.org/1999/xhtml\""><div>Id 21870932 (BIG), J.H.R. Peters</div><div><a href=\""tel:+3715828282\"">+3715828282</a> (Tel Werk), <a href=\""mailto:j.peters@hospital.nl\"">j.peters@hospital.nl</a> (E-mail Werk)</div><div>Simon Smitweg 1, 2353 GA Leiderdorp, Nederland (Werk)</div></div>""
+  },
   ""identifier"": [
     {
       ""system"": ""http://fhir.nl/fhir/NamingSystem/big"",
-      ""value"": ""21870932 2.16.528.1.1007.5.1""
+      ""value"": ""21870932""
     }
   ],
   ""name"": [
@@ -109,13 +103,44 @@ public class PractitionerContextService
       ""use"": ""official"",
       ""text"": ""J.H.R. Peters"",
       ""family"": ""Peters"",
+      ""_family"": {
+        ""extension"": [
+          {
+            ""url"": ""http://hl7.org/fhir/StructureDefinition/humanname-own-name"",
+            ""valueString"": ""Peters""
+          }
+        ]
+      },
       ""given"": [
         ""J."",
         ""H."",
         ""R.""
       ],
-      ""prefix"": [
-        ""Dr.""
+      ""_given"": [
+        {
+          ""extension"": [
+            {
+              ""url"": ""http://hl7.org/fhir/StructureDefinition/iso21090-EN-qualifier"",
+              ""valueCode"": ""IN""
+            }
+          ]
+        },
+        {
+          ""extension"": [
+            {
+              ""url"": ""http://hl7.org/fhir/StructureDefinition/iso21090-EN-qualifier"",
+              ""valueCode"": ""IN""
+            }
+          ]
+        },
+        {
+          ""extension"": [
+            {
+              ""url"": ""http://hl7.org/fhir/StructureDefinition/iso21090-EN-qualifier"",
+              ""valueCode"": ""IN""
+            }
+          ]
+        }
       ]
     }
   ],
@@ -133,15 +158,60 @@ public class PractitionerContextService
   ],
   ""address"": [
     {
+      ""extension"": [
+        {
+          ""url"": ""http://nictiz.nl/fhir/StructureDefinition/ext-AddressInformation.AddressType"",
+          ""valueCodeableConcept"": {
+            ""coding"": [
+              {
+                ""system"": ""http://terminology.hl7.org/CodeSystem/v3-AddressUse"",
+                ""code"": ""WP"",
+                ""display"": ""Work Place""
+              }
+            ]
+          }
+        }
+      ],
+      ""use"": ""work"",
       ""line"": [
         ""Simon Smitweg 1""
       ],
+      ""_line"": [
+        {
+          ""extension"": [
+            {
+              ""url"": ""http://hl7.org/fhir/StructureDefinition/iso21090-ADXP-streetName"",
+              ""valueString"": ""Simon Smitweg""
+            },
+            {
+              ""url"": ""http://hl7.org/fhir/StructureDefinition/iso21090-ADXP-houseNumber"",
+              ""valueString"": ""1""
+            }
+          ]
+        }
+      ],
       ""city"": ""Leiderdorp"",
       ""postalCode"": ""2353 GA"",
-      ""country"": ""Nederland""
+      ""country"": ""Nederland"",
+      ""_country"": {
+        ""extension"": [
+          {
+            ""url"": ""http://nictiz.nl/fhir/StructureDefinition/ext-CodeSpecification"",
+            ""valueCodeableConcept"": {
+              ""coding"": [
+                {
+                  ""system"": ""urn:iso:std:iso:3166"",
+                  ""version"": ""2020-10-26T00:00:00"",
+                  ""code"": ""NL"",
+                  ""display"": ""Nederland""
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
-  ],
-  ""gender"": ""female""
+  ]
 }";
         return _parser.Deserialize<Practitioner>(json);
     }
