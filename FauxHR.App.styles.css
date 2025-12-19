@@ -183,8 +183,8 @@ main[b-2vvxzarkhv] {
     }
 
 .nav-item[b-s7b9q36p16]  a.active {
-    background-color: var(--bs-primary-bg-subtle);
-    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.12);
+    color: rgba(var(--bs-primary-rgb), 1);
     font-weight: 600;
     border-left: 3px solid var(--bs-primary);
 }
@@ -194,9 +194,20 @@ main[b-2vvxzarkhv] {
     color: #0d6efd;
 }
 
-.nav-item[b-s7b9q36p16]  a.active:hover {
-    background-color: var(--bs-primary-bg-subtle);
+.nav-item[b-s7b9q36p16]  a.nav-link-secondary {
+    height: 2.25rem;
+    line-height: 2.25rem;
+    font-size: 0.85rem;
+    color: rgba(var(--bs-secondary-rgb), 1);
+}
+
+.nav-item[b-s7b9q36p16]  a.nav-link-secondary:hover {
     color: var(--bs-primary);
+}
+
+.nav-item[b-s7b9q36p16]  a.active:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.12);
+    color: rgba(var(--bs-primary-rgb), 1);
 }
 
 /* Desktop sidebar styling */
