@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "FauxHR.App",
   "resources": {
-    "hash": "sha256-Uc3O+yWSofCFh0oXDCRTtQ5vjm9QWhItL/Pfc3Ydkvs=",
+    "hash": "sha256-sNg3wKz1o4at2h31Ch9/vj5RBblDZpNLIzEc5YGt4zM=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -23,7 +23,7 @@
       "Hl7.Fhir.Base.wasm": "sha256-bs4lpzqLHeTYZ8i246QPZHVNX1kMHyVAGsTjpHxn/ac=",
       "Hl7.Fhir.Conformance.wasm": "sha256-q3SKH2MTuyP7OaupwFTWakx3m3ElNSV7Hnfzy07y1lA=",
       "Hl7.Fhir.R4.wasm": "sha256-Z8fJt3309b7wq6OSXP6/887zMaKi0r5ZVFWe56hayUc=",
-      "Microsoft.AspNetCore.Components.wasm": "sha256-x29Dq0zMDTiiIhIbJXP0h363yjiogQOOy4XmdoTFrjM=",
+      "Microsoft.AspNetCore.Components.wasm": "sha256-fPz7vZE2w4AeuDpkK4K+bq+EKOpChUExJ52nyAAO5go=",
       "Microsoft.AspNetCore.Components.Web.wasm": "sha256-gutzPySMk/FG4S/No8Gi0otlxeZWluUpwbi3RFZcmjQ=",
       "Microsoft.AspNetCore.Components.WebAssembly.wasm": "sha256-Zz3Nnod/s2GdYrK5TdR/YNw9B6CcxGkx7mJrlDDIZs0=",
       "Microsoft.Extensions.Configuration.wasm": "sha256-od574rRtVVRJj+24jbl8j3GdQFpxlJOpSx+pEMw1Q18=",
@@ -88,10 +88,10 @@
       "System.Xml.XPath.XDocument.wasm": "sha256-izy8aj8kbD39GieHGtpxh/xJ0WAm+U3yLDZevkHGkF8=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "System.Private.CoreLib.wasm": "sha256-6BxXSwCLCBuNmF9vhBofTc8W+ZWAg8q4Lu4AosItlSo=",
-      "FauxHR.Core.wasm": "sha256-SvkjMWvTKbvLx8hdsHzqpzr6snZSzKmSMf6+45qkknk=",
-      "FauxHR.MockData.wasm": "sha256-YJAM1St+6APpY+5ZKQjxRs+N1DB2ocAWq5ubQfm03GA=",
-      "FauxHR.Modules.ExitStrategy.wasm": "sha256-Zf5+YhCMKSs2I4lCk+kTdQ+gjHW7i8WAQvykWkXzmXQ=",
-      "FauxHR.App.wasm": "sha256-Ex1H8B2em+JpyI+HBhUQDDzobcXC8WxUO6mJn5Z3c6Y="
+      "FauxHR.Core.wasm": "sha256-xg1WT6TYFWqZEfaUIT488pouovpH6sLvNMpJLOyZ1HY=",
+      "FauxHR.MockData.wasm": "sha256-8vRuROquYtHngBEcSDDvU9bcLV5pBlZctjGFqaxGeCw=",
+      "FauxHR.Modules.ExitStrategy.wasm": "sha256-e6AJ36GcOappJDc5O+bPqyKl1SWe4Jq+3NVZ+rRRg4A=",
+      "FauxHR.App.wasm": "sha256-h6Nl/MUWYx499XYAlLc4+Zvfo09RXP0xbwU7BfMde7o="
     }
   },
   "cacheBootResources": true,
