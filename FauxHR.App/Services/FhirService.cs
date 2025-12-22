@@ -31,11 +31,8 @@ public class FhirService : IFhirService
 
     private void InitializeClient()
     {
-        // In Blazor WASM, we must provide a handler to avoid FhirClient trying to set 
-        // AutomaticDecompression, which throws PlatformNotSupportedException.
-        // We also wrap it to intercept requests for Conformance Testing.
-        var innerHandler = new HttpClientHandler();
-        var customHandler = new CustomHeaderHandler(innerHandler, _appState);
+        // In Blazor WASM, create a handler chain with the browser's default handler
+        var customHandler = new CustomHeaderHandler(_appState);
 
         _client = new FhirClient(_appState.CurrentServerUrl, 
             new FhirClientSettings
@@ -51,7 +48,7 @@ public class FhirService : IFhirService
     {
         private readonly AppState _state;
 
-        public CustomHeaderHandler(HttpMessageHandler inner, AppState state) : base(inner)
+        public CustomHeaderHandler(AppState state) : base(new HttpClientHandler())
         {
             _state = state;
         }
@@ -72,6 +69,7 @@ public class FhirService : IFhirService
                     }
                 }
             }
+            
             return await base.SendAsync(request, cancellationToken);
         }
     }

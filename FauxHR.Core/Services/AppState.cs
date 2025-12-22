@@ -18,7 +18,8 @@ public class AppState
     public List<FhirServerConfig> AvailableServers { get; private set; } = new()
     {
         new FhirServerConfig { Url = "https://server.fire.ly", Label = "Firely Server" },
-        new FhirServerConfig { Url = "http://hapi.fhir.org/baseR4", Label = "HAPI Server" }
+        new FhirServerConfig { Url = "http://hapi.fhir.org/baseR4", Label = "HAPI Server" },
+        new FhirServerConfig { Url = "https://nictiz.proxy.interoplab.eu/d/67c22c0aba87c4750a34a962/nictiz/r4/fhir", Label = "Conformancelab Nictiz" }
     };
 
     public event Action? OnChange;
