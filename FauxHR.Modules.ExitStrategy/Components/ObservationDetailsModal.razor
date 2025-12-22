@@ -1,4 +1,5 @@
 @using Hl7.Fhir.Model
+@using FauxHR.Modules.ExitStrategy.Helpers
 
 <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
     <div class="modal-dialog">
@@ -40,7 +41,7 @@
                     <div class="col-6">
                         <label class="text-muted small d-block">Datum</label>
                         <div>
-                            @if (Observation.Effective is FhirDateTime dt)
+                            @if (Observation.Effective is FhirDateTime dt && !string.IsNullOrEmpty(dt.Value))
                             {
                                 @DateTime.Parse(dt.Value).ToString("g")
                             }
@@ -81,9 +82,36 @@
                     </div>
                 }
 
-                <div class="mt-3 pt-3 border-top text-muted small user-select-all">
-                    ID: @Observation.Id
-                </div>
+                @if (!string.IsNullOrEmpty(Observation.Meta?.Source))
+                {
+                    <div class="mt-3">
+                        <label class="text-muted small d-block">Bron</label>
+                        <div>
+                             <i class="bi bi-hdd-network me-1 small"></i>
+                             @SourceDisplayHelper.GetSourceLabel(Observation.Meta.Source)
+                        </div>
+                    </div>
+                }
+
+                <details class="mt-3 pt-3 border-top text-muted small user-select-all">
+                    <summary class="fw-bold mb-1" style="cursor: pointer;">Technische details</summary>
+                    <div class="mt-2">ID: @Observation.Id</div>
+                    @if (Observation.Meta != null)
+                    {
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="text-nowrap">Versie: @(Observation.Meta.VersionId ?? "-")</span>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="text-truncate">Updated: @(Observation.Meta.LastUpdated?.ToString("g") ?? "-")</span>
+                        </div>
+                    }
+                     @if (Observation.Identifier.Any())
+                    {
+                        <div class="mt-1 text-break">
+                            IDs: @string.Join(", ", Observation.Identifier.Select(i => $"{i.System}|{i.Value}"))
+                        </div>
+                    }
+                </details>
             </div>
         </div>
     </div>

@@ -45,7 +45,7 @@
 
                             <div class="small text-muted mt-auto pt-2 border-top">
                                 <i class="bi bi-calendar me-1"></i>
-                                @if (obs.Effective is FhirDateTime dt)
+                                @if (obs.Effective is FhirDateTime dt && !string.IsNullOrEmpty(dt.Value))
                                 {
                                     @DateTime.Parse(dt.Value).ToString("d MMM yyyy")
                                 }

@@ -2,6 +2,7 @@ using Blazored.LocalStorage;
 using FauxHR.Modules.ExitStrategy.Models;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
+using FauxHR.Modules.ExitStrategy.Helpers;
 using Task = System.Threading.Tasks.Task;
 
 namespace FauxHR.Modules.ExitStrategy.Services;
@@ -220,7 +221,11 @@ public class AcpIntegratedDataLoader
     {
         var linkedQrIds = new HashSet<string>();
 
-        foreach (var enc in allEncounters)
+
+        // Deduplicate encounters
+        var uniqueEncounters = ResourceDeduplicator.Deduplicate(allEncounters, e => e.Identifier);
+
+        foreach (var enc in uniqueEncounters)
         {
             var linkedProcedures = allProcedures.Where(p =>
                 (enc.ReasonReference.Any(r => MatchesRef(r, p))) ||
@@ -234,7 +239,7 @@ public class AcpIntegratedDataLoader
                 var linkedQRs = allQuestionnaireResponses
                     .Where(qr => qr.Encounter != null && MatchesRef(qr.Encounter, enc))
                     .ToList();
-                linkedQrIds.UnionWith(linkedQRs.Select(q => q.Id));
+                linkedQrIds.UnionWith(linkedQRs.Select(q => q.Id).OfType<string>());
 
                 var linkedObs = data.AllObservations
                     .Where(obs => obs.Encounter != null && MatchesRef(obs.Encounter, enc))
@@ -271,7 +276,7 @@ public class AcpIntegratedDataLoader
 
         // Identify unlinked questionnaires
         data.UnlinkedQuestionnaires = allQuestionnaireResponses
-            .Where(qr => !linkedQrIds.Contains(qr.Id))
+            .Where(qr => qr.Id != null && !linkedQrIds.Contains(qr.Id))
             .OrderByDescending(qr => qr.Authored)
             .ToList();
     }

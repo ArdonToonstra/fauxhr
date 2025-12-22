@@ -1,5 +1,6 @@
 @using Hl7.Fhir.Model
 @using FauxHR.Modules.ExitStrategy.Models
+@using FauxHR.Modules.ExitStrategy.Helpers
 @using Blazored.LocalStorage
 @using Hl7.Fhir.Serialization
 @using Task = System.Threading.Tasks.Task
@@ -68,10 +69,28 @@
                     </dl>
                 }
             </div>
-            <div class="modal-footer justify-content-start bg-light">
-                <small class="text-muted w-100">
-                    <strong>Reference:</strong> @Participant.Reference
-                </small>
+            <div class="modal-footer justify-content-start bg-light d-block p-2">
+                 <details class="text-muted small w-100">
+                    <summary class="fw-bold mb-1" style="cursor: pointer;">Technische details</summary>
+                    <div class="mt-2">Reference: @Participant.Reference</div>
+                    @if (resolvedResource != null)
+                    {
+                         <div class="d-flex justify-content-between mt-1">
+                             <span class="text-nowrap" title="@resolvedResource.Id">Res ID: @resolvedResource.Id</span>
+                             <span class="text-nowrap">Versie: @(resolvedResource.Meta?.VersionId ?? "-")</span>
+                         </div>
+                         <div class="mt-1">
+                             Updated: @(resolvedResource.Meta?.LastUpdated?.ToString("g") ?? "-")
+                         </div>
+                         @if (resolvedResource.Meta?.Source != null)
+                         {
+                              <div class="mt-1">
+                                 <i class="bi bi-hdd-network me-1 small"></i>
+                                 Bron: @SourceDisplayHelper.GetSourceLabel(resolvedResource.Meta.Source)
+                             </div>
+                         }
+                    }
+                </details>
             </div>
         </div>
     </div>
@@ -82,6 +101,7 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private bool isLoading = true;
+    private Resource? resolvedResource;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -107,7 +127,8 @@
             var resourceType = parts[^2];
             var resourceId = parts[^1];
 
-            var resource = await FetchResourceAsync(resourceType, resourceId);
+            resolvedResource = await FetchResourceAsync(resourceType, resourceId);
+            var resource = resolvedResource;
 
             if (resource is PractitionerRole role)
             {
