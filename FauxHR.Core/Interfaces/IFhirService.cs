@@ -9,4 +9,8 @@ public interface IFhirService
     Task<Bundle> SearchPatientsAsync(string name);
     Task<Bundle> SearchResourceAsync(string resourceType, string queryString);
     Task<Hl7.Fhir.Model.Resource?> GetAsync(string path);
+    Task<Bundle> SearchPractitionersAsync(string? name = null);
+    Task<Practitioner?> GetPractitionerByIdAsync(string id);
+    Task<Practitioner?> LoadDefaultPractitionerAsync();
+    Task<Bundle> SearchRelatedPersonsAsync(string? name = null);
 }

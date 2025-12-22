@@ -39,5 +39,31 @@
     </div>
 </div>
 
+@using FauxHR.Core.Interfaces
+@using FauxHR.Core.Services
+
+@inject AppState AppState
+@inject IFhirService FhirService
+
 @code {
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        if (AppState.CurrentPractitioner == null)
+        {
+            var practitioner = await FhirService.LoadDefaultPractitionerAsync();
+            if (practitioner != null)
+            {
+                AppState.SetPractitioner(practitioner);
+            }
+        }
+
+        if (AppState.CurrentPatient == null)
+        {
+            var patient = await FhirService.GetPatientByIdAsync("F1-ACP-Patient-HendrikHartman");
+            if (patient != null)
+            {
+                AppState.SetPatient(patient);
+            }
+        }
+    }
 }

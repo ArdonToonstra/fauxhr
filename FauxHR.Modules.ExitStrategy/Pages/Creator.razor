@@ -1,10 +1,12 @@
 @page "/acp/creator"
 @using FauxHR.Core.Services
+@using FauxHR.Core.Interfaces
 @using FauxHR.Modules.ExitStrategy.Helpers
 @using Hl7.Fhir.Model
 @using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject NavigationManager Navigation
+@inject IFhirService FhirService
 
 <PageTitle>ACP - Registreren</PageTitle>
 
@@ -90,47 +92,82 @@
                             Nieuw ACP Gesprek Registreren
                         </h5>
                         
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Registreer hier een nieuw Advance Care Planning gesprek met de patiënt.
-                        </div>
-
                         <form>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Datum gesprek *</label>
                                     <input type="date" class="form-control" @bind="encounterDate" />
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold">Status</label>
-                                    <select class="form-select" @bind="encounterStatus">
-                                        <option value="finished">Afgerond</option>
-                                        <option value="in-progress">Lopend</option>
-                                        <option value="planned">Gepland</option>
-                                    </select>
-                                </div>
                                 <div class="col-12">
                                     <label class="form-label fw-bold">Deelnemers</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" placeholder="Zoek practitioner of gerelateerd persoon..." />
-                                        <button class="btn btn-outline-primary" type="button">
-                                            <i class="bi bi-plus"></i>
-                                        </button>
+                                    
+                                     <!-- Participant List -->
+                                    <div class="list-group mb-3">
+                                        @foreach (var participant in participants)
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <i class="bi @GetParticipantIcon(participant.Resource) me-2"></i>
+                                                    @GetParticipantName(participant.Resource)
+                                                    <span class="badge bg-secondary ms-2 small">@participant.Resource.TypeName</span>
+                                                </div>
+                                                @if (participant.Resource != AppState.CurrentPatient && participant.Resource != AppState.CurrentPractitioner)
+                                                {
+                                                     <button type="button" class="btn btn-sm btn-outline-danger border-0" @onclick="() => RemoveParticipant(participant)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
                                     </div>
-                                    <small class="text-muted">Voeg zorgverleners of naasten toe die aanwezig waren bij het gesprek</small>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label fw-bold">Notities</label>
-                                    <textarea class="form-control" rows="4" @bind="encounterNotes" placeholder="Algemene notities over het gesprek..."></textarea>
+                                    
+                                    <!-- Add Participant -->
+                                    <div class="card bg-light border-0 p-3">
+                                        <h6 class="text-muted small fw-bold mb-2">Deelnemer toevoegen</h6>
+                                         <div class="input-group mb-2">
+                                            <select class="form-select" @bind="participantTypeToAdd">
+                                                <option value="Practitioner">Zorgverlener (Practitioner)</option>
+                                                <option value="RelatedPerson">Naaste (RelatedPerson)</option>
+                                            </select>
+                                            <input type="text" class="form-control" @bind="participantSearchQuery" @bind:event="oninput" @onkeyup="SearchParticipant" placeholder="Zoek op naam..." />
+                                            <button class="btn btn-outline-primary" type="button" @onclick="ExecuteParticipantSearch">
+                                                <i class="bi bi-search"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Search Results -->
+                                        @if (foundParamParticipants != null && foundParamParticipants.Any())
+                                        {
+                                            <div class="list-group">
+                                                @foreach (var p in foundParamParticipants)
+                                                {
+                                                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" @onclick="() => SelectParticipant(p)">
+                                                        <span>@GetParticipantName(p)</span>
+                                                        <i class="bi bi-plus-circle text-success"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
+                                        else if (isSearchingParticipants)
+                                        {
+                                             <div class="text-center py-2 text-muted small">
+                                                <div class="spinner-border spinner-border-sm me-1"></div> Zoeken...
+                                            </div>
+                                        }
+                                        else if (searchPerformed && (foundParamParticipants == null || !foundParamParticipants.Any()))
+                                        {
+                                             <div class="text-center py-2 text-muted small">
+                                                Geen resultaten gevonden.
+                                            </div>
+                                        }
+                                    </div>
+                                    
                                 </div>
                             </div>
 
                             <div class="d-flex gap-2 mt-4">
-                                <button type="button" class="btn btn-success" @onclick="SaveEncounter">
-                                    <i class="bi bi-save me-2"></i>Opslaan
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
-                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                <button type="button" class="btn btn-primary" @onclick="SaveEncounterLocal">
+                                    Volgende <i class="bi bi-arrow-right ms-2"></i>
                                 </button>
                             </div>
                         </form>
@@ -145,7 +182,6 @@
                             <i class="bi bi-flag text-primary me-2"></i>
                             Behandeldoel Registreren
                         </h5>
-
                         <form>
                             <div class="row g-3">
                                 <div class="col-12">
@@ -165,7 +201,7 @@
                                         <option value="cancelled">Geannuleerd</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
+                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">Datum</label>
                                     <input type="date" class="form-control" @bind="goalDate" />
                                 </div>
@@ -176,26 +212,22 @@
                             </div>
 
                             <div class="d-flex gap-2 mt-4">
-                                <button type="button" class="btn btn-success" @onclick="SaveGoal">
-                                    <i class="bi bi-save me-2"></i>Opslaan
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
-                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                <button type="button" class="btn btn-primary" @onclick='() => activeTab = "consent"'>
+                                     Volgende <i class="bi bi-arrow-right ms-2"></i>
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             }
-            else if (activeTab == "consent")
+             else if (activeTab == "consent")
             {
-                <div class="card border-0 shadow-sm">
+                 <div class="card border-0 shadow-sm">
                     <div class="card-body p-4">
-                        <h5 class="card-title mb-4">
+                         <h5 class="card-title mb-4">
                             <i class="bi bi-clipboard-check text-primary me-2"></i>
                             Behandelwens Registreren
                         </h5>
-
                         <form>
                             <div class="row g-3">
                                 <div class="col-12">
@@ -232,30 +264,25 @@
                                     <textarea class="form-control" rows="3" @bind="consentNotes" placeholder="Eventuele toelichting..."></textarea>
                                 </div>
                             </div>
-
                             <div class="d-flex gap-2 mt-4">
-                                <button type="button" class="btn btn-success" @onclick="SaveConsent">
-                                    <i class="bi bi-save me-2"></i>Opslaan
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
-                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                <button type="button" class="btn btn-primary" @onclick='() => activeTab = "observation"'>
+                                     Volgende <i class="bi bi-arrow-right ms-2"></i>
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
+                 </div>
             }
-            else if (activeTab == "observation")
+             else if (activeTab == "observation")
             {
                 <div class="card border-0 shadow-sm">
                     <div class="card-body p-4">
-                        <h5 class="card-title mb-4">
+                         <h5 class="card-title mb-4">
                             <i class="bi bi-clipboard-data text-primary me-2"></i>
                             Bevinding Registreren
                         </h5>
-
                         <form>
-                            <div class="row g-3">
+                             <div class="row g-3">
                                 <div class="col-12">
                                     <label class="form-label fw-bold">Type bevinding *</label>
                                     <select class="form-select" @bind="observationType">
@@ -279,13 +306,9 @@
                                     <textarea class="form-control" rows="3" @bind="observationNotes" placeholder="Aanvullende notities..."></textarea>
                                 </div>
                             </div>
-
                             <div class="d-flex gap-2 mt-4">
-                                <button type="button" class="btn btn-success" @onclick="SaveObservation">
-                                    <i class="bi bi-save me-2"></i>Opslaan
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">
-                                    <i class="bi bi-x-circle me-2"></i>Reset
+                                <button type="button" class="btn btn-success" @onclick="SaveAll">
+                                     <i class="bi bi-check-circle me-2"></i>Afronden &amp Opslaan
                                 </button>
                             </div>
                         </form>
@@ -299,7 +322,7 @@
         {
             <div class="alert alert-success alert-dismissible fade show mt-4" role="alert">
                 <i class="bi bi-check-circle me-2"></i>
-                <strong>Opgeslagen!</strong> De gegevens zijn succesvol opgeslagen.
+                <strong>Opgeslagen!</strong> De gegevens zijn in het geheugen opgeslagen (Transaction Bundle voorbereid).
                 <button type="button" class="btn-close" @onclick="() => showSuccessMessage = false"></button>
             </div>
         }
@@ -311,10 +334,25 @@
     private string activeTab = "encounter";
     private bool showSuccessMessage = false;
 
+    // Local Memory Store for "Transaction Bundle"
+    private List<Resource> transactionBundleResources = new();
+
     // Encounter fields
     private DateTime encounterDate = DateTime.Today;
-    private string encounterStatus = "finished";
-    private string encounterNotes = "";
+    
+    // Participant Management
+    private List<AcpParticipant> participants = new();
+    private string participantTypeToAdd = "Practitioner";
+    private string participantSearchQuery = "";
+    private bool isSearchingParticipants = false;
+    private bool searchPerformed = false;
+    private List<Resource> foundParamParticipants = new(); /* Practitioner or RelatedPerson */
+
+    private class AcpParticipant
+    {
+        public Resource Resource { get; set; } = default!;
+        // Could add specific role if needed
+    }
 
     // Goal fields
     private string goalCode = "";
@@ -340,87 +378,167 @@
         if (AppState.CurrentPatient != null)
         {
             patientName = PatientHelper.GetPatientName(AppState.CurrentPatient);
+            
+            // Add Patient as Subject/Participant context implicitly for display
+             participants.Add(new AcpParticipant { Resource = AppState.CurrentPatient });
         }
-    }
-
-    private async Task SaveEncounter()
-    {
-        // TODO: Implement FHIR Encounter creation and POST to server
-        Console.WriteLine($"Saving encounter: {encounterDate}, {encounterStatus}");
-        showSuccessMessage = true;
-        ResetForm();
-        StateHasChanged();
-        await Task.Delay(3000);
-        showSuccessMessage = false;
-        StateHasChanged();
-    }
-
-    private async Task SaveGoal()
-    {
-        // TODO: Implement FHIR Goal creation and POST to server
-        Console.WriteLine($"Saving goal: {goalCode}, {goalStatus}");
-        showSuccessMessage = true;
-        ResetForm();
-        StateHasChanged();
-        await Task.Delay(3000);
-        showSuccessMessage = false;
-        StateHasChanged();
-    }
-
-    private async Task SaveConsent()
-    {
-        // TODO: Implement FHIR Consent creation and POST to server
-        Console.WriteLine($"Saving consent: {consentTreatmentType}, {consentDecision}");
-        showSuccessMessage = true;
-        ResetForm();
-        StateHasChanged();
-        await Task.Delay(3000);
-        showSuccessMessage = false;
-        StateHasChanged();
-    }
-
-    private async Task SaveObservation()
-    {
-        // TODO: Implement FHIR Observation creation and POST to server
-        Console.WriteLine($"Saving observation: {observationType}, {observationValue}");
-        showSuccessMessage = true;
-        ResetForm();
-        StateHasChanged();
-        await Task.Delay(3000);
-        showSuccessMessage = false;
-        StateHasChanged();
-    }
-
-    private void ResetForm()
-    {
-        // Reset fields based on active tab
-        if (activeTab == "encounter")
+        
+        if (AppState.CurrentPractitioner != null)
         {
-            encounterDate = DateTime.Today;
-            encounterStatus = "finished";
-            encounterNotes = "";
+            participants.Add(new AcpParticipant { Resource = AppState.CurrentPractitioner });
         }
-        else if (activeTab == "goal")
+    }
+
+    private string GetParticipantName(Resource r)
+    {
+        if (r is Patient p) return PatientHelper.GetPatientName(p);
+        if (r is Practitioner prac)
         {
-            goalCode = "";
-            goalStatus = "active";
-            goalDate = DateTime.Today;
-            goalNotes = "";
+             if (prac.Name?.FirstOrDefault() is HumanName name)
+            {
+                var prefix = name.Prefix.Any() ? string.Join(" ", name.Prefix) + " " : "";
+                var given = string.Join(" ", name.Given ?? Array.Empty<string>());
+                return $"{prefix}{given} {name.Family}".Trim();
+            }
+            return "Unknown Practitioner";
         }
-        else if (activeTab == "consent")
+        if (r is RelatedPerson rp)
         {
-            consentTreatmentType = "";
-            consentDecision = "permit";
-            consentDate = DateTime.Today;
-            consentOtherSpecification = "";
-            consentNotes = "";
+             if (rp.Name?.FirstOrDefault() is HumanName name)
+            {
+                return $"{string.Join(" ", name.Given ?? Array.Empty<string>())} {name.Family}".Trim();
+            }
+            return "Unknown RelatedPerson";
         }
-        else if (activeTab == "observation")
+        return "Unknown";
+    }
+
+    private string GetParticipantIcon(Resource r)
+    {
+        return r switch
         {
-            observationType = "";
-            observationValue = "";
-            observationDate = DateTime.Today;
-            observationNotes = "";
+            Patient => "bi-person-vcard",
+            Practitioner => "bi-person-badge-fill",
+            RelatedPerson => "bi-heart-fill",
+            _ => "bi-person"
+        };
+    }
+    
+    // Search Participants
+    private async Task KeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ExecuteParticipantSearch();
+    }
+    
+    private async Task SearchParticipant(KeyboardEventArgs e) {
+        if (e.Key == "Enter")
+        {
+             await ExecuteParticipantSearch();
         }
+    }
+
+    private async Task ExecuteParticipantSearch()
+    {
+        if (string.IsNullOrWhiteSpace(participantSearchQuery)) return;
+        
+        isSearchingParticipants = true;
+        searchPerformed = true;
+        foundParamParticipants.Clear();
+        
+        try
+        {
+            if (participantTypeToAdd == "Practitioner")
+            {
+                var bundle = await FhirService.SearchPractitionersAsync(participantSearchQuery);
+                 if (bundle.Entry != null)
+                {
+                    foundParamParticipants.AddRange(bundle.Entry.Select(e => e.Resource).OfType<Practitioner>());
+                }
+            }
+            else if (participantTypeToAdd == "RelatedPerson")
+            {
+                var bundle = await FhirService.SearchRelatedPersonsAsync(participantSearchQuery);
+                if (bundle.Entry != null)
+                {
+                    foundParamParticipants.AddRange(bundle.Entry.Select(e => e.Resource).OfType<RelatedPerson>());
+                }
+            }
+        }
+        finally
+        {
+            isSearchingParticipants = false;
+        }
+    }
+
+    private void SelectParticipant(Resource r)
+    {
+        if (!participants.Any(p => p.Resource.Id == r.Id))
+        {
+            participants.Add(new AcpParticipant { Resource = r });
+        }
+        // Reset search
+        participantSearchQuery = "";
+        foundParamParticipants.Clear();
+        searchPerformed = false;
+    }
+
+    private void RemoveParticipant(AcpParticipant p)
+    {
+        participants.Remove(p);
+    }
+
+    private void SaveEncounterLocal()
+    {
+        // Create Encounter Resource
+        var encounter = new Encounter();
+        encounter.Id = Guid.NewGuid().ToString();
+        
+        // Identifier
+        encounter.Identifier.Add(new Identifier
+        {
+            System = "https://fauxhr.fhir/namingsystem/resource-identifier",
+            Value = Guid.NewGuid().ToString()
+        });
+
+        // Status & Class
+        encounter.Status = Encounter.EncounterStatus.Finished;
+        encounter.Class = new Coding("http://terminology.hl7.org/CodeSystem/v3-ActCode", "IMP", "inpatient encounter");
+        
+        // Subject -> Patient
+        if (AppState.CurrentPatient != null)
+        {
+            encounter.Subject = new ResourceReference($"Patient/{AppState.CurrentPatient.Id}");
+        }
+
+        // Period (Date)
+        encounter.Period = new Period { StartElement = new FhirDateTime(encounterDate), EndElement = new FhirDateTime(encounterDate) };
+
+        // Participants
+        foreach (var p in participants)
+        {
+             // Skip Patient in participant list as they are Subject
+             if (p.Resource is not Patient)
+             {
+                 var fhirParticipant = new Encounter.ParticipantComponent();
+                 string refStr = $"{p.Resource.TypeName}/{p.Resource.Id}";
+                 fhirParticipant.Individual = new ResourceReference(refStr);
+                 encounter.Participant.Add(fhirParticipant);
+             }
+        }
+        
+        // Add to local transaction bundle
+        transactionBundleResources.Add(encounter);
+        
+        Console.WriteLine($"[Local] Encounter Created: {encounter.Id}");
+        
+        // Move to next tab
+        activeTab = "goal";
+    }
+
+    private void SaveAll()
+    {
+        // TODO: Create other resources (Goal, Consent, etc) similar to Encounter logic
+        // For now, just show success
+        showSuccessMessage = true;
     }
 }

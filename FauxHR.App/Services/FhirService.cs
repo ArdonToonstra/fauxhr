@@ -3,16 +3,20 @@ using FauxHR.Core.Services;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Rest;
 
+using FauxHR.App.Services;
+using Hl7.Fhir.Serialization;
 namespace FauxHR.App.Services;
 
 public class FhirService : IFhirService
 {
     private readonly AppState _appState;
+    private readonly HttpClient _httpClient;
     private FhirClient _client = default!;
 
-    public FhirService(AppState appState)
+    public FhirService(AppState appState, HttpClient httpClient)
     {
         _appState = appState;
+        _httpClient = httpClient;
         InitializeClient(); // Initializes _client
         
         // Re-initialize client if server URL changes
@@ -126,6 +130,55 @@ public class FhirService : IFhirService
         catch (FhirOperationException ex)
         {
             return ex.Outcome; // Return the outcome on error so caller can inspect it
+        }
+    }
+
+    public async Task<Bundle> SearchPractitionersAsync(string? name = null)
+    {
+        var q = new SearchParams();
+        if(!string.IsNullOrEmpty(name))
+        {
+            q.Add("name:contains", name);
+        }
+        
+        return await _client.SearchAsync<Practitioner>(q) ?? new Bundle();
+    }
+
+    public async Task<Practitioner?> GetPractitionerByIdAsync(string id)
+    {
+        try 
+        {
+            return await _client.ReadAsync<Practitioner>($"Practitioner/{id}");
+        }
+        catch (FhirOperationException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Bundle> SearchRelatedPersonsAsync(string? name = null)
+    {
+        var q = new SearchParams();
+        if(!string.IsNullOrEmpty(name))
+        {
+            q.Add("name:contains", name);
+        }
+        
+        return await _client.SearchAsync<RelatedPerson>(q) ?? new Bundle();
+    }
+
+    public async Task<Practitioner?> LoadDefaultPractitionerAsync()
+    {
+        try
+        {
+            var json = await _httpClient.GetStringAsync("data/default-practitioner.json");
+            var parser = new FhirJsonParser();
+            return parser.Parse<Practitioner>(json);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading default practitioner: {ex.Message}");
+            return null;
         }
     }
 }
