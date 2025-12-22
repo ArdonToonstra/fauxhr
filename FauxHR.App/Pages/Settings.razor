@@ -20,6 +20,17 @@
                 <div class="card-body">
                     <h5 class="card-title mb-3">FHIR Servers</h5>
                     
+                    @if (AppState.CurrentServerUrl.Contains("nictiz.proxy.interoplab.eu"))
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            <strong><i class="bi bi-exclamation-triangle-fill"></i> CORS & Certificate Warning</strong>
+                            <p class="mb-2 mt-2">The Nictiz Conformancelab requires special browser settings to bypass CORS and SSL certificate validation.</p>
+                            <p class="mb-2"><strong>Run Chrome with:</strong></p>
+                            <code class="d-block bg-dark text-white p-2 rounded small" style="white-space: pre-wrap;">& "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\ChromeDevSession" --disable-web-security --disable-gpu --ignore-certificate-errors</code>
+                            <p class="mb-0 mt-2 small">⚠️ Only use this Chrome instance for testing. See <a href="https://github.com/ArdonToonstra/fauxhr#-testing-with-nictiz-conformancelab" target="_blank">README</a> for details.</p>
+                        </div>
+                    }
+                    
                     <div class="list-group mb-3">
                         @foreach (var server in AppState.AvailableServers)
                         {

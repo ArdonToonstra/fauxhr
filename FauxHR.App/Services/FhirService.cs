@@ -31,7 +31,8 @@ public class FhirService : IFhirService
 
     private void InitializeClient()
     {
-        // In Blazor WASM, create a handler chain with the browser's default handler
+        // In Blazor WASM, always provide a custom handler to prevent FhirClient from 
+        // creating its own handler which would try to set AutomaticDecompression (not supported)
         var customHandler = new CustomHeaderHandler(_appState);
 
         _client = new FhirClient(_appState.CurrentServerUrl, 
@@ -43,34 +44,70 @@ public class FhirService : IFhirService
             customHandler);
     }
 
-    // Custom Handler to inject headers
-    private class CustomHeaderHandler : DelegatingHandler
+    // Custom Handler to inject headers - creates fresh HttpClient for each request
+    private class CustomHeaderHandler : HttpMessageHandler
     {
         private readonly AppState _state;
 
-        public CustomHeaderHandler(AppState state) : base(new HttpClientHandler())
+        public CustomHeaderHandler(AppState state)
         {
             _state = state;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            // Clone the request to avoid "already sent" error
+            var clonedRequest = await CloneHttpRequestMessageAsync(request);
+            
+            // Add custom headers only when in conformance testing mode
             if (_state.ConformanceTestingMode)
             {
                 foreach (var header in _state.CustomHeaders)
                 {
                     if (!string.IsNullOrWhiteSpace(header.Key))
                     {
-                        if (request.Headers.Contains(header.Key))
+                        if (clonedRequest.Headers.Contains(header.Key))
                         {
-                            request.Headers.Remove(header.Key);
+                            clonedRequest.Headers.Remove(header.Key);
                         }
-                        request.Headers.Add(header.Key, header.Value);
+                        clonedRequest.Headers.Add(header.Key, header.Value);
                     }
                 }
             }
             
-            return await base.SendAsync(request, cancellationToken);
+            // Create a new HttpClient for each request (Blazor WASM compatible)
+            // This uses the browser's fetch API under the hood
+            using var httpClient = new HttpClient();
+            return await httpClient.SendAsync(clonedRequest, cancellationToken);
+        }
+
+        private static async Task<HttpRequestMessage> CloneHttpRequestMessageAsync(HttpRequestMessage request)
+        {
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri)
+            {
+                Version = request.Version
+            };
+
+            // Copy headers
+            foreach (var header in request.Headers)
+            {
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            // Copy content if present
+            if (request.Content != null)
+            {
+                var contentBytes = await request.Content.ReadAsByteArrayAsync();
+                clone.Content = new ByteArrayContent(contentBytes);
+
+                // Copy content headers
+                foreach (var header in request.Content.Headers)
+                {
+                    clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+            }
+
+            return clone;
         }
     }
 

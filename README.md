@@ -23,3 +23,19 @@ The application uses [LHC-Forms](https://lhncbc.github.io/lforms/) to render FHI
 - **Assets**: Scripts and CSS are served locally from `FauxHR.Modules.ExitStrategy/wwwroot`.
 - **Questionnaire Definition**: Rendering a `QuestionnaireResponse` requires the original `Questionnaire` definition. This is currently embedded as a resource in `FauxHR.Modules.ExitStrategy`.
 - **Usage**: The helper `wwwroot/js/lforms-helper.js` handles the merging of the Response data into the Questionnaire definition before rendering.
+
+## 🧪 Testing with Nictiz Conformancelab
+
+The application supports testing against external FHIR servers like the Nictiz Conformancelab. Due to browser security restrictions (CORS and SSL certificate validation), you need to run Chrome with special flags for testing:
+
+### Windows:
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\ChromeDevSession" --disable-web-security --disable-gpu --ignore-certificate-errors
+```
+
+### What these flags do:
+- `--user-data-dir="C:\ChromeDevSession"` - Creates an isolated Chrome profile (doesn't affect your normal browsing)
+- `--disable-web-security` - Disables CORS restrictions
+- `--ignore-certificate-errors` - Bypasses SSL certificate validation for PKIoverheid certificates
+
+⚠️ **Security Warning**: Only use this Chrome instance for local development testing. Never browse other websites with these flags enabled.
