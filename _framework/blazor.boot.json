@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "FauxHR.App",
   "resources": {
-    "hash": "sha256-3+e5KQij+0k6rrReDR5IYH8SWAV6d2WE47ceBiSuF6E=",
+    "hash": "sha256-t92A22pSi+eRgcoUVuhYFj1bu8+LIvB/PxGZ9lelfdA=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -58,7 +58,7 @@
       "System.Linq.Expressions.wasm": "sha256-+kUGAdEBYlfogHFPio8XLuIIn/AqIAqgfkgr/j+U3qY=",
       "System.Linq.wasm": "sha256-3LieDLPu+AG+4HOsuSJHs6Ded/X6DA57QCQxzpKXPCk=",
       "System.Memory.wasm": "sha256-RanWTVC0tYqkDRQFleqWUc0tNGGxnGfRU05DrzmFkT8=",
-      "System.Net.Http.wasm": "sha256-ZXEn3z9rPU0Pn90BXzU/kgbonm0RupUfcPq8X/YL8LE=",
+      "System.Net.Http.wasm": "sha256-WNJYO7/JY1D8fyBH0ZqnWRhrSW9atyWjqbwXjLBVbU4=",
       "System.Net.Mail.wasm": "sha256-/ZN4eIdN2jEHrfMYctpSq866vFkkgaiBozDd1Zw6yDA=",
       "System.Net.Primitives.wasm": "sha256-gm2yQQpRhKL99JPpQqml4IgYS3wdo10j72+zsLiisqI=",
       "System.Net.Requests.wasm": "sha256-r0kO2KlzhmeQmjI/RewzSvVTTp3YRy4ZsNJ3URHephw=",
@@ -88,10 +88,10 @@
       "System.Xml.XPath.XDocument.wasm": "sha256-izy8aj8kbD39GieHGtpxh/xJ0WAm+U3yLDZevkHGkF8=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "System.Private.CoreLib.wasm": "sha256-6BxXSwCLCBuNmF9vhBofTc8W+ZWAg8q4Lu4AosItlSo=",
-      "FauxHR.Core.wasm": "sha256-kmx+s9C7ZG5v1ITkxTQqME652Iy6bUGJ2Q98joSe878=",
-      "FauxHR.MockData.wasm": "sha256-2f3aQXuYvqI3ZIFbpfi90OzWKUpEaRmTk3fiRbX6w5w=",
-      "FauxHR.Modules.ExitStrategy.wasm": "sha256-H2A6KrPFcDUpeoBrMs7tgCIeYRqXKxRhH+QdLsWqLZA=",
-      "FauxHR.App.wasm": "sha256-lDVL7t35tTFNRJDyDchte+rHSaWKuxtQ1x7bsErlfw0="
+      "FauxHR.Core.wasm": "sha256-zF6JxWESxVK4waQ1Q3BMZe8bNpIuoa05uYsRKB4OJC0=",
+      "FauxHR.MockData.wasm": "sha256-jaCxUYJPJ+4c87e7sm8rT2dlr6RiBk++m0YlNjYMReU=",
+      "FauxHR.Modules.ExitStrategy.wasm": "sha256-jG3gOAm4tgJy5aMji/fj55vA2QMh81GoqEln4ytVtKM=",
+      "FauxHR.App.wasm": "sha256-Xrf9fYPZ8OOGv3sRBtfWd0Zhr0nxY6l9TuTvIgJCfdA="
     }
   },
   "cacheBootResources": true,
