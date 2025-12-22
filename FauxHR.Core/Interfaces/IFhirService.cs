@@ -13,4 +13,5 @@ public interface IFhirService
     Task<Practitioner?> GetPractitionerByIdAsync(string id);
     Task<Practitioner?> LoadDefaultPractitionerAsync();
     Task<Bundle> SearchRelatedPersonsAsync(string? name = null);
+    Task<Bundle> TransactionAsync(Bundle bundle);
 }

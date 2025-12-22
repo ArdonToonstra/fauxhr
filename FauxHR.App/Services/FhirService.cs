@@ -180,5 +180,11 @@ public class FhirService : IFhirService
             Console.WriteLine($"Error loading default practitioner: {ex.Message}");
             return null;
         }
+
+    }
+
+    public async Task<Bundle> TransactionAsync(Bundle bundle)
+    {
+        return await _client.TransactionAsync(bundle);
     }
 }
