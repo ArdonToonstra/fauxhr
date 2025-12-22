@@ -124,6 +124,74 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-6 mt-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Conformance Testing</h5>
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="conformanceMode" 
+                               @bind="conformanceMode" />
+                        <label class="form-check-label" for="conformanceMode">
+                            Enable Conformance Testing Mode
+                        </label>
+                    </div>
+
+                    @if (conformanceMode)
+                    {
+                        <div class="alert alert-warning small mb-3">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Custom headers will be added to <strong>all</strong> outgoing FHIR requests.
+                        </div>
+
+                        <div class="table-responsive mb-3">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Header</th>
+                                        <th>Value</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var header in customHeaders)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm border-0" @bind="header.Key" placeholder="Key" />
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm border-0" @bind="header.Value" placeholder="Value" />
+                                            </td>
+                                            <td class="text-center">
+                                                <button class="btn btn-link link-danger p-0" @onclick="() => RemoveHeader(header)">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mb-4">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="AddHeader">
+                                <i class="bi bi-plus-lg me-1"></i> Add Header
+                            </button>
+                        </div>
+                    }
+
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-primary" @onclick="SaveConformanceSettings">Save Conformance Settings</button>
+                        @if (conformanceSaved)
+                        {
+                            <span class="text-success ms-2 fade-in">Saved!</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -139,10 +207,19 @@
     private bool enableReferences = true;
     private int resolutionDepth = 3;
 
+    // Conformance Settings
+    private bool conformanceMode = false;
+    private bool conformanceSaved = false;
+    private List<HeaderItem> customHeaders = new();
+
     protected override void OnInitialized()
     {
         enableReferences = AppState.EnableReferenceResolution;
         resolutionDepth = AppState.ReferenceResolutionDepth;
+
+        conformanceMode = AppState.ConformanceTestingMode;
+        // Copy list to avoid direct state mutation before save
+        customHeaders = AppState.CustomHeaders.Select(h => new HeaderItem { Key = h.Key, Value = h.Value }).ToList();
     }
 
     private void SaveReferenceSettings()
@@ -203,5 +280,26 @@
         {
             isLoading = false;
         }
+        }
+
+
+    private void AddHeader()
+    {
+        customHeaders.Add(new HeaderItem());
+    }
+
+    private void RemoveHeader(HeaderItem item)
+    {
+        customHeaders.Remove(item);
+    }
+
+    private void SaveConformanceSettings()
+    {
+        // Filter out empty keys
+        var validHeaders = customHeaders.Where(h => !string.IsNullOrWhiteSpace(h.Key)).ToList();
+        AppState.SetConformanceSettings(conformanceMode, validHeaders);
+        
+        conformanceSaved = true;
+        Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { conformanceSaved = false; StateHasChanged(); }));
     }
 }

@@ -33,7 +33,9 @@ public class FhirService : IFhirService
     {
         // In Blazor WASM, we must provide a handler to avoid FhirClient trying to set 
         // AutomaticDecompression, which throws PlatformNotSupportedException.
-        var handler = new HttpClientHandler();
+        // We also wrap it to intercept requests for Conformance Testing.
+        var innerHandler = new HttpClientHandler();
+        var customHandler = new CustomHeaderHandler(innerHandler, _appState);
 
         _client = new FhirClient(_appState.CurrentServerUrl, 
             new FhirClientSettings
@@ -41,7 +43,37 @@ public class FhirService : IFhirService
                 PreferredFormat = ResourceFormat.Json,
                 VerifyFhirVersion = true
             },
-            handler);
+            customHandler);
+    }
+
+    // Custom Handler to inject headers
+    private class CustomHeaderHandler : DelegatingHandler
+    {
+        private readonly AppState _state;
+
+        public CustomHeaderHandler(HttpMessageHandler inner, AppState state) : base(inner)
+        {
+            _state = state;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (_state.ConformanceTestingMode)
+            {
+                foreach (var header in _state.CustomHeaders)
+                {
+                    if (!string.IsNullOrWhiteSpace(header.Key))
+                    {
+                        if (request.Headers.Contains(header.Key))
+                        {
+                            request.Headers.Remove(header.Key);
+                        }
+                        request.Headers.Add(header.Key, header.Value);
+                    }
+                }
+            }
+            return await base.SendAsync(request, cancellationToken);
+        }
     }
 
     public async Task<Patient?> GetPatientByIdAsync(string id)

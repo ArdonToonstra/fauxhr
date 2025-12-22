@@ -88,6 +88,22 @@ public class AppState
         }
     }
 
+    // Conformance Testing Settings
+    public bool ConformanceTestingMode { get; private set; } = false;
+    public List<HeaderItem> CustomHeaders { get; private set; } = new()
+    {
+        // Default header requested by user
+        new HeaderItem { Key = "Authorization", Value = "Basic TmljdGl6OlBhc3N3b3Jk" }
+    };
+
+    public void SetConformanceSettings(bool enabled, List<HeaderItem> headers)
+    {
+        ConformanceTestingMode = enabled;
+        // Deep copy or re-assign list
+        CustomHeaders = headers.Select(h => new HeaderItem { Key = h.Key, Value = h.Value }).ToList();
+        NotifyStateChanged();
+    }
+
     private void NotifyStateChanged() => OnChange?.Invoke();
 }
 
@@ -95,4 +111,10 @@ public class FhirServerConfig
 {
     public string Url { get; set; } = "";
     public string Label { get; set; } = "";
+}
+
+public class HeaderItem
+{
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
 }
