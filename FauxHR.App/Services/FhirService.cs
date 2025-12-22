@@ -172,8 +172,9 @@ public class FhirService : IFhirService
         try
         {
             var json = await _httpClient.GetStringAsync("data/default-practitioner.json");
-            var parser = new FhirJsonParser();
-            return parser.Parse<Practitioner>(json);
+            var deserializer = new FhirJsonDeserializer();
+            var practitioner = deserializer.Deserialize<Practitioner>(json);
+            return practitioner;
         }
         catch (Exception ex)
         {
@@ -185,6 +186,6 @@ public class FhirService : IFhirService
 
     public async Task<Bundle> TransactionAsync(Bundle bundle)
     {
-        return await _client.TransactionAsync(bundle);
+        return await _client.TransactionAsync(bundle) ?? new Bundle();
     }
 }

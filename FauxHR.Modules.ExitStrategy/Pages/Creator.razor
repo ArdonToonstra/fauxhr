@@ -401,6 +401,7 @@
 
     // Local Memory Store for "Transaction Bundle"
     private List<Resource> transactionBundleResources = new();
+    private Dictionary<string, string> resourceIdToUrn = new(); // Maps resource ID to urn:uuid:
 
     // Encounter fields
     private DateTime encounterDate = DateTime.Today;
@@ -421,7 +422,6 @@
 
     // Goal fields
     private string goalCode = "";
-    private string goalStatus = "active";
     private DateTime goalDate = DateTime.Today;
     private string goalNotes = "";
 
@@ -442,8 +442,30 @@
     
     // Internal State
     private string currentEncounterId = "";
-    private DateTime observationDate = DateTime.Today;
-    private string observationNotes = "";
+
+    private string GetOrCreateUrn(Resource resource)
+    {
+        if (resource.Id == null)
+        {
+            resource.Id = Guid.NewGuid().ToString();
+        }
+        if (!resourceIdToUrn.ContainsKey(resource.Id))
+        {
+            resourceIdToUrn[resource.Id] = $"urn:uuid:{Guid.NewGuid()}";
+        }
+        return resourceIdToUrn[resource.Id];
+    }
+
+    private string GetResourceReference(string resourceType, string resourceId)
+    {
+        // Check if this is a locally created resource in the transaction bundle
+        if (resourceIdToUrn.ContainsKey(resourceId))
+        {
+            return resourceIdToUrn[resourceId];
+        }
+        // Otherwise use normal reference format for existing server resources
+        return $"{resourceType}/{resourceId}";
+    }
 
     protected override void OnInitialized()
     {
@@ -601,20 +623,58 @@
         return encounter;
     }
 
+    private Procedure CreateProcedureResource(Encounter encounter)
+    {
+        var proc = new Procedure();
+        proc.Id = Guid.NewGuid().ToString();
+        proc.Identifier.Add(new Identifier
+        {
+             System = "https://fauxhr.fhir/namingsystem/resource-identifier",
+             Value = Guid.NewGuid().ToString()
+        });
+        proc.Status = EventStatus.Completed;
+        proc.Code = new CodeableConcept
+        {
+            Coding = new List<Coding>
+            {
+                new Coding("http://snomed.info/sct", "713603004", "Advance care planning")
+            }
+        };
+        // Subject - copy from encounter (should always have a subject in this context)
+        proc.Subject = encounter.Subject!; 
+        // Link to Encounter using URN reference
+        var encounterId = encounter.Id ?? Guid.NewGuid().ToString();
+        if (encounter.Id == null) encounter.Id = encounterId;
+        proc.Encounter = new ResourceReference(GetResourceReference("Encounter", encounterId));
+        // Date
+        proc.Performed = encounter.Period?.StartElement!;
+
+        return proc;
+    }
+
     private void SaveEncounterLocal()
     {
         var encounter = CreateEncounterResource();
-        currentEncounterId = encounter.Id;
+        currentEncounterId = encounter.Id ?? Guid.NewGuid().ToString();
+        encounter.Id = currentEncounterId;
         
         // Update or Add to local transaction bundle
-        var existing = transactionBundleResources.FirstOrDefault(r => r is Encounter && r.Id == currentEncounterId);
-        if (existing != null)
-        {
-            transactionBundleResources.Remove(existing);
-        }
-        transactionBundleResources.Add(encounter);
         
-        Console.WriteLine($"[Local] Encounter Saved: {encounter.Id}");
+        // Remove existing Encounter
+        var existing = transactionBundleResources.FirstOrDefault(r => r is Encounter && r.Id == currentEncounterId);
+        if (existing != null) transactionBundleResources.Remove(existing);
+        
+        // Remove existing Procedure linked to this encounter
+        var existingProc = transactionBundleResources.FirstOrDefault(r => r is Procedure p && p.Encounter?.Reference?.EndsWith(currentEncounterId, StringComparison.Ordinal) == true);
+        if (existingProc != null) transactionBundleResources.Remove(existingProc);
+
+        transactionBundleResources.Add(encounter);
+
+        // Create and add Procedure
+        var proc = CreateProcedureResource(encounter);
+        transactionBundleResources.Add(proc);
+        
+        Console.WriteLine($"[Local] Encounter Saved: {encounter.Id} & Procedure: {proc.Id}");
         
         // Move to next tab
         activeTab = "goal";
@@ -965,7 +1025,7 @@
         // Encounter
         if (!string.IsNullOrEmpty(currentEncounterId))
         {
-            obs.Encounter = new ResourceReference($"Encounter/{currentEncounterId}");
+            obs.Encounter = new ResourceReference(GetResourceReference("Encounter", currentEncounterId));
         }
 
         // Value Logic
@@ -1025,11 +1085,21 @@
         if (string.IsNullOrEmpty(currentEncounterId))
         {
              var enc = CreateEncounterResource();
-             currentEncounterId = enc.Id;
+             currentEncounterId = enc.Id ?? Guid.NewGuid().ToString();
+             enc.Id = currentEncounterId;
              // Remove any theoretically existing encounter to be safe
              transactionBundleResources.RemoveAll(r => r is Encounter); 
+             // Also remove procedures if we are auto-creating
+             var encId = enc.Id;
+             transactionBundleResources.RemoveAll(r => r is Procedure p && encId != null && p.Encounter?.Reference?.EndsWith(encId, StringComparison.Ordinal) == true);
+
              transactionBundleResources.Insert(0, enc);
-             Console.WriteLine($"[Local] Auto-created Encounter: {enc.Id}");
+             
+             // Create linked Procedure
+             var proc = CreateProcedureResource(enc);
+             transactionBundleResources.Insert(1, proc);
+
+             Console.WriteLine($"[Local] Auto-created Encounter: {enc.Id} & Procedure: {proc.Id}");
         }
 
         // 1. Save local observations
@@ -1042,6 +1112,7 @@
         foreach (var resource in transactionBundleResources)
         {
             var entry = new Bundle.EntryComponent();
+            entry.FullUrl = GetOrCreateUrn(resource);
             entry.Resource = resource;
             entry.Request = new Bundle.RequestComponent
             {
@@ -1092,6 +1163,12 @@
         preparedBundle = null;
         // Rollback: remove observations from transaction list so they aren't duplicated if user tries again
         transactionBundleResources.RemoveAll(r => r is Observation);
+        // Remove observation URNs from mapping
+        var obsIds = transactionBundleResources.OfType<Observation>().Select(o => o.Id).Where(id => id != null).ToList();
+        foreach (var id in obsIds)
+        {
+            resourceIdToUrn.Remove(id!);
+        }
     }
 
     private async Task SendBundle(Bundle bundle)
@@ -1105,6 +1182,7 @@
             
             showSuccessMessage = true;
             transactionBundleResources.Clear(); // Clear local state
+            resourceIdToUrn.Clear(); // Clear URN mappings
             savedConsents.Clear();
         }
         catch (Exception ex)
