@@ -79,6 +79,15 @@
                             @loadMessage
                         </div>
                     }
+
+                    <div class="border-top pt-3 mt-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showDebugInfo" 
+                                   checked="@AppState.ShowDebugInfo" 
+                                   @onchange="@(e => AppState.SetShowDebugInfo((bool)e.Value!))" />
+                            <label class="form-check-label" for="showDebugInfo">Enable Debug Mode (Show JSON)</label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

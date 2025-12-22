@@ -3,6 +3,7 @@
 @using FauxHR.Core.Interfaces
 @using FauxHR.Modules.ExitStrategy.Helpers
 @using Hl7.Fhir.Model
+@using Hl7.Fhir.Serialization
 @using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject NavigationManager Navigation
@@ -365,12 +366,38 @@
             </div>
         }
     }
+
+    @if (showDebugModal)
+    {
+        <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title"><i class="bi bi-bug me-2"></i>Debug: Transaction Bundle</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CancelSend"></button>
+                    </div>
+                    <div class="modal-body bg-light">
+                        <pre style="max-height: 500px; overflow: auto; background-color: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 0.85em;"><code>@debugBundleJson</code></pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CancelSend">Annuleren</button>
+                        <button type="button" class="btn btn-success" @onclick="ConfirmSend">
+                            <i class="bi bi-send me-2"></i>Versturen naar Server
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     private string patientName = "Unknown";
     private string activeTab = "encounter";
     private bool showSuccessMessage = false;
+    private bool showDebugModal = false;
+    private string? debugBundleJson;
+    private Bundle? preparedBundle;
 
     // Local Memory Store for "Transaction Bundle"
     private List<Resource> transactionBundleResources = new();
@@ -532,12 +559,11 @@
         participants.Remove(p);
     }
 
-    private void SaveEncounterLocal()
+    private Encounter CreateEncounterResource()
     {
-        // Create Encounter Resource
         var encounter = new Encounter();
-        encounter.Id = Guid.NewGuid().ToString();
-        currentEncounterId = encounter.Id;
+        // Use existing ID if already created locally, otherwise generate new
+        encounter.Id = !string.IsNullOrEmpty(currentEncounterId) ? currentEncounterId : Guid.NewGuid().ToString();
         
         // Identifier
         encounter.Identifier.Add(new Identifier
@@ -572,10 +598,23 @@
              }
         }
         
-        // Add to local transaction bundle
+        return encounter;
+    }
+
+    private void SaveEncounterLocal()
+    {
+        var encounter = CreateEncounterResource();
+        currentEncounterId = encounter.Id;
+        
+        // Update or Add to local transaction bundle
+        var existing = transactionBundleResources.FirstOrDefault(r => r is Encounter && r.Id == currentEncounterId);
+        if (existing != null)
+        {
+            transactionBundleResources.Remove(existing);
+        }
         transactionBundleResources.Add(encounter);
         
-        Console.WriteLine($"[Local] Encounter Created: {encounter.Id}");
+        Console.WriteLine($"[Local] Encounter Saved: {encounter.Id}");
         
         // Move to next tab
         activeTab = "goal";
@@ -606,12 +645,12 @@
         // Description - SNOMED code
         if (!string.IsNullOrEmpty(goalCode))
         {
-            string display = goalCode switch
+            string? display = goalCode switch
             {
                 "385987000" => "zorg bij ziekte en/of letsel",
                 "1351964001" => "levensverlengende behandeling",
                 "713148004" => "voorkomen en behandelen van symptomen",
-                _ => ""
+                _ => null
             };
             
             goal.Description = new CodeableConcept
@@ -674,9 +713,12 @@
         {
             Coding = new List<Coding>
             {
-                new Coding("http://snomed.info/sct", "129125009")
+                new Coding("http://snomed.info/sct", "129125009", "Advance care planning")
             }
         });
+        
+        // Policy
+        consent.Policy.Add(new Consent.PolicyComponent { Uri = "https://wetten.overheid.nl/" });
         
         // Patient - subject
         if (AppState.CurrentPatient != null)
@@ -748,7 +790,7 @@
             else
             {
                 // SNOMED codes
-                string display = consentTreatmentType switch
+                string? display = consentTreatmentType switch
                 {
                     "305351004" => "opname op intensive care",
                     "89666000" => "cardiopulmonale resuscitatie",
@@ -756,7 +798,7 @@
                     "116762002" => "toediening van bloedproduct",
                     "281789004" => "antibiotische therapie",
                     "32485007" => "opname in ziekenhuis",
-                    _ => ""
+                    _ => null
                 };
                 
                 consent.Provision.Code.Add(new CodeableConcept
@@ -962,7 +1004,7 @@
                 {
                     // SNOMED code
                     // Determine display text (optional but good)
-                    string valDisplay = ""; // Can be refined
+                    string? valDisplay = null; // Use null instead of empty string to avoid validation error
                     obs.Value = new CodeableConcept
                     {
                         Coding = new List<Coding>
@@ -979,6 +1021,17 @@
 
     private async Task SaveAll()
     {
+        // 0. Ensure Encounter exists (even if defaults used)
+        if (string.IsNullOrEmpty(currentEncounterId))
+        {
+             var enc = CreateEncounterResource();
+             currentEncounterId = enc.Id;
+             // Remove any theoretically existing encounter to be safe
+             transactionBundleResources.RemoveAll(r => r is Encounter); 
+             transactionBundleResources.Insert(0, enc);
+             Console.WriteLine($"[Local] Auto-created Encounter: {enc.Id}");
+        }
+
         // 1. Save local observations
         SaveObservationsLocal();
         
@@ -998,6 +1051,51 @@
             bundle.Entry.Add(entry);
         }
         
+        preparedBundle = bundle;
+
+        if (AppState.ShowDebugInfo)
+        {
+            var serializer = new FhirJsonSerializer();
+            var rawJson = serializer.SerializeToString(bundle);
+            try 
+            {
+                var doc = System.Text.Json.JsonDocument.Parse(rawJson);
+                var opts = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                debugBundleJson = System.Text.Json.JsonSerializer.Serialize(doc, opts);
+            }
+            catch
+            {
+                debugBundleJson = rawJson;
+            }
+            showDebugModal = true;
+            // Wait for user interaction
+        }
+        else
+        {
+            await SendBundle(bundle);
+        }
+    }
+
+    private async Task ConfirmSend()
+    {
+        showDebugModal = false;
+        if (preparedBundle != null)
+        {
+            await SendBundle(preparedBundle);
+        }
+    }
+
+    private void CancelSend()
+    {
+        showDebugModal = false;
+        debugBundleJson = null;
+        preparedBundle = null;
+        // Rollback: remove observations from transaction list so they aren't duplicated if user tries again
+        transactionBundleResources.RemoveAll(r => r is Observation);
+    }
+
+    private async Task SendBundle(Bundle bundle)
+    {
         try
         {
             // 3. Send to Server

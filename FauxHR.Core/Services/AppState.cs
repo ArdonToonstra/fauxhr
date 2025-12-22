@@ -76,6 +76,17 @@ public class AppState
         ReferenceResolutionDepth = Math.Max(1, Math.Min(5, depth)); // Clamp between 1-5
         NotifyStateChanged();
     }
+    
+    public bool ShowDebugInfo { get; private set; } = false;
+    
+    public void SetShowDebugInfo(bool show)
+    {
+        if (ShowDebugInfo != show)
+        {
+            ShowDebugInfo = show;
+            NotifyStateChanged();
+        }
+    }
 
     private void NotifyStateChanged() => OnChange?.Invoke();
 }
