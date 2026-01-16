@@ -1,0 +1,432 @@
+@page "/crmi/terminology"
+@page "/crmi/terminology/valueset/{Id}"
+@page "/crmi/terminology/codesystem/{Id}"
+
+@inject TerminologyService TerminologyService
+@inject NavigationManager Navigation
+
+<div class="container-fluid">
+    @* Header *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item">
+                        <a href="/crmi/overview" class="text-decoration-none">
+                            <i class="bi bi-grid-3x3-gap me-1"></i>CRMI Authoring
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">Terminology</li>
+                </ol>
+            </nav>
+            <h2 class="mb-0">
+                <i class="bi bi-translate me-2"></i>
+                Terminology Browser
+            </h2>
+        </div>
+        <div>
+            <a href="/crmi/overview" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Overview
+            </a>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (selectedResource != null)
+    {
+        @* Resource Detail View *@
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge @(resourceType == "ValueSet" ? "bg-primary" : "bg-info") me-2">
+                            @resourceType
+                        </span>
+                        <span class="badge @GetStatusBadgeClass(GetStatus())">
+                            @GetStatus().ToString()
+                        </span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection">
+                        <i class="bi bi-x me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <h4 class="mb-1">@GetTitle()</h4>
+                <p class="text-muted small mb-3">@GetUrl()</p>
+                
+                @if (!string.IsNullOrEmpty(GetDescription()))
+                {
+                    <div class="mb-4">
+                        <h6>Description</h6>
+                        <p>@GetDescription()</p>
+                    </div>
+                }
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <strong>Version:</strong> @(GetVersion() ?? "—")
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Publisher:</strong> @(GetPublisher() ?? "—")
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Date:</strong> @(GetDate()?.ToString("yyyy-MM-dd") ?? "—")
+                    </div>
+                </div>
+
+                @if (resourceType == "ValueSet" && valueSetResource != null)
+                {
+                    <h5>Concepts</h5>
+                    @if (isExpanding)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Expanding ValueSet...</span>
+                        </div>
+                    }
+                    else if (expandedConcepts.Any())
+                    {
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Display</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var concept in expandedConcepts)
+                                    {
+                                        <tr>
+                                            <td><code>@concept.Code</code></td>
+                                            <td>@concept.Display</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted">@expandedConcepts.Count() concepts</small>
+                    }
+                    else
+                    {
+                        <div class="text-muted">No concepts available or expansion not supported.</div>
+                    }
+                }
+                else if (resourceType == "CodeSystem" && codeSystemResource != null)
+                {
+                    <h5>Concepts</h5>
+                    @if (codeSystemConcepts.Any())
+                    {
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Display</th>
+                                        <th>Definition</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var concept in codeSystemConcepts)
+                                    {
+                                        <tr>
+                                            <td><code>@concept.Code</code></td>
+                                            <td>@concept.Display</td>
+                                            <td class="text-muted small">@(concept.Definition ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted">@codeSystemConcepts.Count() concepts</small>
+                    }
+                    else
+                    {
+                        <div class="text-muted">No concepts defined in this CodeSystem.</div>
+                    }
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        @* Browse Mode *@
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-list-ul me-2"></i>ValueSets
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Search ValueSets..."
+                                   @bind="valueSetSearch" @bind:event="oninput" @onkeyup="@(e => SearchValueSets())" />
+                            <button class="btn btn-outline-secondary" @onclick="SearchValueSets">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                        
+                        @if (valueSets.Any())
+                        {
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                @foreach (var vs in valueSets)
+                                {
+                                    <div class="border-bottom py-2 cursor-pointer" 
+                                         style="cursor: pointer;"
+                                         @onclick="() => SelectValueSet(vs.Id)">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@(vs.Title ?? vs.Name ?? "(untitled)")</strong>
+                                            <span class="badge @GetStatusBadgeClass(vs.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown)">
+                                                @vs.Status
+                                            </span>
+                                        </div>
+                                        <small class="text-muted text-break">@vs.Url</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">
+                                No ValueSets found. Try searching or check server connection.
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <i class="bi bi-code-square me-2"></i>CodeSystems
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Search CodeSystems..."
+                                   @bind="codeSystemSearch" @bind:event="oninput" @onkeyup="@(e => SearchCodeSystems())" />
+                            <button class="btn btn-outline-secondary" @onclick="SearchCodeSystems">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                        
+                        @if (codeSystems.Any())
+                        {
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                @foreach (var cs in codeSystems)
+                                {
+                                    <div class="border-bottom py-2"
+                                         style="cursor: pointer;"
+                                         @onclick="() => SelectCodeSystem(cs.Id)">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@(cs.Title ?? cs.Name ?? "(untitled)")</strong>
+                                            <span class="badge @GetStatusBadgeClass(cs.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown)">
+                                                @cs.Status
+                                            </span>
+                                        </div>
+                                        <small class="text-muted text-break">@cs.Url</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">
+                                No CodeSystems found. Try searching or check server connection.
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    
+    private bool isLoading = true;
+    private bool isExpanding;
+    
+    private string valueSetSearch = "";
+    private string codeSystemSearch = "";
+    
+    private List<Hl7.Fhir.Model.ValueSet> valueSets = new();
+    private List<Hl7.Fhir.Model.CodeSystem> codeSystems = new();
+    
+    // Selected resource details
+    private object? selectedResource;
+    private string resourceType = "";
+    private Hl7.Fhir.Model.ValueSet? valueSetResource;
+    private Hl7.Fhir.Model.CodeSystem? codeSystemResource;
+    private IEnumerable<(string Code, string Display)> expandedConcepts = Enumerable.Empty<(string, string)>();
+    private IEnumerable<(string Code, string Display, string? Definition)> codeSystemConcepts = Enumerable.Empty<(string, string, string?)>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if we're viewing a specific resource from URL
+        var uri = new Uri(Navigation.Uri);
+        var path = uri.AbsolutePath;
+        
+        if (path.Contains("/valueset/") && !string.IsNullOrEmpty(Id))
+        {
+            await SelectValueSet(Id);
+        }
+        else if (path.Contains("/codesystem/") && !string.IsNullOrEmpty(Id))
+        {
+            await SelectCodeSystem(Id);
+        }
+        else
+        {
+            await LoadBothLists();
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task LoadBothLists()
+    {
+        var vsTask = SearchValueSets();
+        var csTask = SearchCodeSystems();
+        await Task.WhenAll(vsTask, csTask);
+    }
+
+    private async Task SearchValueSets()
+    {
+        var bundle = await TerminologyService.SearchValueSetsAsync(valueSetSearch);
+        valueSets = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.ValueSet)
+            .Where(r => r != null)
+            .ToList()! ?? new();
+        StateHasChanged();
+    }
+
+    private async Task SearchCodeSystems()
+    {
+        var bundle = await TerminologyService.SearchCodeSystemsAsync(codeSystemSearch);
+        codeSystems = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.CodeSystem)
+            .Where(r => r != null)
+            .ToList()! ?? new();
+        StateHasChanged();
+    }
+
+    private async Task SelectValueSet(string id)
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var result = await TerminologyService.GetValueSetAsync(id);
+        if (result.IsSuccess && result.Resource != null)
+        {
+            valueSetResource = result.Resource;
+            selectedResource = valueSetResource;
+            resourceType = "ValueSet";
+            
+            // Try to expand
+            isLoading = false;
+            isExpanding = true;
+            StateHasChanged();
+            
+            expandedConcepts = await TerminologyService.GetValueSetConceptsAsync(id);
+            isExpanding = false;
+        }
+        
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task SelectCodeSystem(string id)
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var result = await TerminologyService.GetCodeSystemAsync(id);
+        if (result.IsSuccess && result.Resource != null)
+        {
+            codeSystemResource = result.Resource;
+            selectedResource = codeSystemResource;
+            resourceType = "CodeSystem";
+            
+            codeSystemConcepts = await TerminologyService.GetCodeSystemConceptsAsync(id);
+        }
+        
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedResource = null;
+        valueSetResource = null;
+        codeSystemResource = null;
+        expandedConcepts = Enumerable.Empty<(string, string)>();
+        codeSystemConcepts = Enumerable.Empty<(string, string, string?)>();
+        Navigation.NavigateTo("/crmi/terminology", replace: true);
+    }
+
+    // Helper methods for current resource
+    private string GetTitle() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Title ?? valueSetResource?.Name ?? "(untitled)",
+        "CodeSystem" => codeSystemResource?.Title ?? codeSystemResource?.Name ?? "(untitled)",
+        _ => ""
+    };
+
+    private string? GetUrl() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Url,
+        "CodeSystem" => codeSystemResource?.Url,
+        _ => null
+    };
+
+    private string? GetVersion() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Version,
+        "CodeSystem" => codeSystemResource?.Version,
+        _ => null
+    };
+
+    private string? GetPublisher() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Publisher,
+        "CodeSystem" => codeSystemResource?.Publisher,
+        _ => null
+    };
+
+    private DateTime? GetDate() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime,
+        "CodeSystem" => codeSystemResource?.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime,
+        _ => null
+    };
+
+    private string? GetDescription() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Description,
+        "CodeSystem" => codeSystemResource?.Description,
+        _ => null
+    };
+
+    private Hl7.Fhir.Model.PublicationStatus GetStatus() => resourceType switch
+    {
+        "ValueSet" => valueSetResource?.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+        "CodeSystem" => codeSystemResource?.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+        _ => Hl7.Fhir.Model.PublicationStatus.Unknown
+    };
+
+    private static string GetStatusBadgeClass(Hl7.Fhir.Model.PublicationStatus status) => status switch
+    {
+        Hl7.Fhir.Model.PublicationStatus.Draft => "bg-warning text-dark",
+        Hl7.Fhir.Model.PublicationStatus.Active => "bg-success",
+        Hl7.Fhir.Model.PublicationStatus.Retired => "bg-secondary",
+        _ => "bg-light text-dark border"
+    };
+}

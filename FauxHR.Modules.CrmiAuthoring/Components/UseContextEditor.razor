@@ -1,0 +1,111 @@
+@* Editor for a list of UsageContext entries *@
+
+<div class="card border-0 bg-light">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Use Context</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddUseContext">
+            <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+    </div>
+    
+    @if (UseContexts.Count == 0)
+    {
+        <div class="card-body text-muted fst-italic">
+            No use contexts defined yet.
+        </div>
+    }
+    else
+    {
+        <div class="card-body p-2">
+            @for (int i = 0; i < UseContexts.Count; i++)
+            {
+                var index = i;
+                var context = UseContexts[i];
+                
+                <div class="card mb-2 border">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <small class="text-muted">Context #@(index + 1)</small>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger" 
+                                    @onclick="() => RemoveUseContext(index)"
+                                    title="Remove">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label small text-muted mb-1">Context Type</label>
+                                <select class="form-select form-select-sm" @bind="context.Code">
+                                    <option value="">-- Select context type --</option>
+                                    <option value="gender">Gender</option>
+                                    <option value="age">Age Group</option>
+                                    <option value="focus">Clinical Focus</option>
+                                    <option value="user">User Type</option>
+                                    <option value="workflow">Workflow Setting</option>
+                                    <option value="task">Task Context</option>
+                                    <option value="venue">Venue</option>
+                                    <option value="species">Species</option>
+                                    <option value="program">Program</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Value System</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Code system URL"
+                                       @bind="context.ValueCodeSystem" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Value Code</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Code"
+                                       @bind="context.ValueCode" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Value Display</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Display text"
+                                       @bind="context.ValueDisplay" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<UsageContextViewModel> UseContexts { get; set; } = new();
+    [Parameter] public EventCallback<List<UsageContextViewModel>> UseContextsChanged { get; set; }
+
+    private void AddUseContext()
+    {
+        UseContexts.Add(new UsageContextViewModel
+        {
+            CodeSystem = "http://terminology.hl7.org/CodeSystem/usage-context-type"
+        });
+        NotifyChange();
+    }
+
+    private void RemoveUseContext(int index)
+    {
+        if (index >= 0 && index < UseContexts.Count)
+        {
+            UseContexts.RemoveAt(index);
+            NotifyChange();
+        }
+    }
+
+    private void NotifyChange()
+    {
+        UseContextsChanged.InvokeAsync(UseContexts);
+    }
+}

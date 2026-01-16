@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FauxHR.Core", "FauxHR.Core\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FauxHR.Modules.ExitStrategy", "FauxHR.Modules.ExitStrategy\FauxHR.Modules.ExitStrategy.csproj", "{11CA52BC-59ED-440C-A232-702F806CF4FF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FauxHR.MockData", "FauxHR.MockData\FauxHR.MockData.csproj", "{988F1DB6-D2DC-49F6-A4FD-B53688682AE9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FauxHR.Modules.CrmiAuthoring", "FauxHR.Modules.CrmiAuthoring\FauxHR.Modules.CrmiAuthoring.csproj", "{CD852D80-42F4-4F9D-AFE8-FE22F6EE6A25}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,5 +36,9 @@ Global
 		{988F1DB6-D2DC-49F6-A4FD-B53688682AE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{988F1DB6-D2DC-49F6-A4FD-B53688682AE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{988F1DB6-D2DC-49F6-A4FD-B53688682AE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD852D80-42F4-4F9D-AFE8-FE22F6EE6A25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD852D80-42F4-4F9D-AFE8-FE22F6EE6A25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD852D80-42F4-4F9D-AFE8-FE22F6EE6A25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD852D80-42F4-4F9D-AFE8-FE22F6EE6A25}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

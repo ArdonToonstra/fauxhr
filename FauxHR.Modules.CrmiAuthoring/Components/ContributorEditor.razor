@@ -1,0 +1,139 @@
+@* Editor for a list of ContactDetail entries (author, editor, reviewer, endorser, contact) *@
+
+<div class="card border-0 bg-light">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-bold">@Label</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddContributor">
+            <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+    </div>
+    
+    @if (Contributors.Count == 0)
+    {
+        <div class="card-body text-muted fst-italic">
+            No @Label.ToLowerInvariant() added yet.
+        </div>
+    }
+    else
+    {
+        <ul class="list-group list-group-flush">
+            @for (int i = 0; i < Contributors.Count; i++)
+            {
+                var index = i;
+                var contributor = Contributors[i];
+                
+                <li class="list-group-item bg-transparent">
+                    <div class="row g-2">
+                        <div class="col-md-10">
+                            <label class="form-label small text-muted mb-1">Name</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Contributor name"
+                                   @bind="contributor.Name" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger w-100" 
+                                    @onclick="() => RemoveContributor(index)"
+                                    title="Remove">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    @if (ShowTelecoms)
+                    {
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small class="text-muted">Contact details</small>
+                                <button type="button" 
+                                        class="btn btn-sm btn-link p-0" 
+                                        @onclick="() => AddTelecom(index)">
+                                    <i class="bi bi-plus-lg"></i> Add contact
+                                </button>
+                            </div>
+                            
+                            @foreach (var telecom in contributor.Telecoms)
+                            {
+                                var telecomIndex = contributor.Telecoms.IndexOf(telecom);
+                                
+                                <div class="row g-1 mb-1">
+                                    <div class="col-3">
+                                        <select class="form-select form-select-sm" @bind="telecom.System">
+                                            <option value="">Type</option>
+                                            <option value="@Hl7.Fhir.Model.ContactPoint.ContactPointSystem.Phone">Phone</option>
+                                            <option value="@Hl7.Fhir.Model.ContactPoint.ContactPointSystem.Email">Email</option>
+                                            <option value="@Hl7.Fhir.Model.ContactPoint.ContactPointSystem.Url">URL</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-7">
+                                        <input type="text" 
+                                               class="form-control form-control-sm" 
+                                               placeholder="Value"
+                                               @bind="telecom.Value" />
+                                    </div>
+                                    <div class="col-2">
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-secondary w-100" 
+                                                @onclick="() => RemoveTelecom(index, telecomIndex)">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Contributors";
+    [Parameter] public List<ContributorViewModel> Contributors { get; set; } = new();
+    [Parameter] public EventCallback<List<ContributorViewModel>> ContributorsChanged { get; set; }
+    [Parameter] public bool ShowTelecoms { get; set; } = true;
+
+    private void AddContributor()
+    {
+        Contributors.Add(new ContributorViewModel());
+        NotifyChange();
+    }
+
+    private void RemoveContributor(int index)
+    {
+        if (index >= 0 && index < Contributors.Count)
+        {
+            Contributors.RemoveAt(index);
+            NotifyChange();
+        }
+    }
+
+    private void AddTelecom(int contributorIndex)
+    {
+        if (contributorIndex >= 0 && contributorIndex < Contributors.Count)
+        {
+            Contributors[contributorIndex].Telecoms.Add(new ContactPointViewModel());
+            NotifyChange();
+        }
+    }
+
+    private void RemoveTelecom(int contributorIndex, int telecomIndex)
+    {
+        if (contributorIndex >= 0 && contributorIndex < Contributors.Count)
+        {
+            var contributor = Contributors[contributorIndex];
+            if (telecomIndex >= 0 && telecomIndex < contributor.Telecoms.Count)
+            {
+                contributor.Telecoms.RemoveAt(telecomIndex);
+                NotifyChange();
+            }
+        }
+    }
+
+    private void NotifyChange()
+    {
+        ContributorsChanged.InvokeAsync(Contributors);
+    }
+}

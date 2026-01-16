@@ -1,4 +1,4 @@
-﻿<Router AppAssembly="@typeof(App).Assembly" AdditionalAssemblies="new[] { typeof(FauxHR.Modules.ExitStrategy.ExitStrategyModule).Assembly }">
+﻿<Router AppAssembly="@typeof(App).Assembly" AdditionalAssemblies="new[] { typeof(FauxHR.Modules.ExitStrategy.ExitStrategyModule).Assembly, typeof(FauxHR.Modules.CrmiAuthoring.CrmiAuthoringModule).Assembly }">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />

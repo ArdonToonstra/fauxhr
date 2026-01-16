@@ -1,0 +1,152 @@
+@using Hl7.Fhir.Model
+
+@* Status badge with transition controls for CRMI artifact lifecycle *@
+
+<div class="d-flex align-items-center gap-2">
+    <span class="badge @GetStatusBadgeClass(CurrentStatus) fs-6">
+        <i class="bi @GetStatusIcon(CurrentStatus) me-1"></i>
+        @CurrentStatus.ToString()
+    </span>
+    
+    @if (!ReadOnly)
+    {
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                    type="button" 
+                    data-bs-toggle="dropdown" 
+                    aria-expanded="false"
+                    disabled="@(!ValidTransitions.Any(t => t != CurrentStatus))">
+                Change Status
+            </button>
+            <ul class="dropdown-menu">
+                @foreach (var status in ValidTransitions.Where(t => t != CurrentStatus))
+                {
+                    <li>
+                        <button class="dropdown-item" @onclick="() => RequestStatusChange(status)">
+                            <i class="bi @GetStatusIcon(status) me-2"></i>
+                            @status.ToString()
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@* Confirmation modal for status changes *@
+@if (showConfirmation)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                        Confirm Status Change
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelChange"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Are you sure you want to change the status from 
+                        <strong>@CurrentStatus</strong> to <strong>@pendingStatus</strong>?
+                    </p>
+                    
+                    @if (pendingStatus == PublicationStatus.Active)
+                    {
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Once active, this artifact cannot return to draft status. 
+                            You will need to create a new version to make further changes.
+                        </div>
+                    }
+                    else if (pendingStatus == PublicationStatus.Retired)
+                    {
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Once retired, this artifact cannot be reactivated. 
+                            You will need to create a new version if you wish to use it again.
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelChange">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn @GetConfirmButtonClass(pendingStatus)" @onclick="ConfirmChange">
+                        <i class="bi @GetStatusIcon(pendingStatus) me-1"></i>
+                        Change to @pendingStatus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public PublicationStatus CurrentStatus { get; set; } = PublicationStatus.Draft;
+    [Parameter] public EventCallback<PublicationStatus> OnStatusChange { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+
+    private bool showConfirmation;
+    private PublicationStatus pendingStatus;
+
+    private IEnumerable<PublicationStatus> ValidTransitions => CurrentStatus switch
+    {
+        PublicationStatus.Draft => new[] { PublicationStatus.Draft, PublicationStatus.Active, PublicationStatus.Retired },
+        PublicationStatus.Active => new[] { PublicationStatus.Active, PublicationStatus.Retired },
+        PublicationStatus.Retired => new[] { PublicationStatus.Retired },
+        _ => Enum.GetValues<PublicationStatus>()
+    };
+
+    private void RequestStatusChange(PublicationStatus newStatus)
+    {
+        if (newStatus == PublicationStatus.Active || newStatus == PublicationStatus.Retired)
+        {
+            // Show confirmation for significant status changes
+            pendingStatus = newStatus;
+            showConfirmation = true;
+        }
+        else
+        {
+            // Direct change for less significant transitions
+            OnStatusChange.InvokeAsync(newStatus);
+        }
+    }
+
+    private async Task ConfirmChange()
+    {
+        showConfirmation = false;
+        await OnStatusChange.InvokeAsync(pendingStatus);
+    }
+
+    private void CancelChange()
+    {
+        showConfirmation = false;
+    }
+
+    private static string GetStatusBadgeClass(PublicationStatus status) => status switch
+    {
+        PublicationStatus.Draft => "bg-warning text-dark",
+        PublicationStatus.Active => "bg-success",
+        PublicationStatus.Retired => "bg-secondary",
+        PublicationStatus.Unknown => "bg-light text-dark border",
+        _ => "bg-light text-dark"
+    };
+
+    private static string GetStatusIcon(PublicationStatus status) => status switch
+    {
+        PublicationStatus.Draft => "bi-pencil",
+        PublicationStatus.Active => "bi-check-circle",
+        PublicationStatus.Retired => "bi-archive",
+        PublicationStatus.Unknown => "bi-question-circle",
+        _ => "bi-circle"
+    };
+
+    private static string GetConfirmButtonClass(PublicationStatus status) => status switch
+    {
+        PublicationStatus.Active => "btn-success",
+        PublicationStatus.Retired => "btn-secondary",
+        _ => "btn-primary"
+    };
+}

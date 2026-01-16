@@ -1,0 +1,89 @@
+@* Editor for a list of Identifier entries *@
+
+<div class="card border-0 bg-light">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Identifiers</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddIdentifier">
+            <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+    </div>
+    
+    @if (Identifiers.Count == 0)
+    {
+        <div class="card-body text-muted fst-italic">
+            No additional identifiers added yet.
+        </div>
+    }
+    else
+    {
+        <ul class="list-group list-group-flush">
+            @for (int i = 0; i < Identifiers.Count; i++)
+            {
+                var index = i;
+                var identifier = Identifiers[i];
+                
+                <li class="list-group-item bg-transparent">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Use</label>
+                            <select class="form-select form-select-sm" @bind="identifier.Use">
+                                <option value="">-- Use --</option>
+                                @foreach (var use in Enum.GetValues<Hl7.Fhir.Model.Identifier.IdentifierUse>())
+                                {
+                                    <option value="@use">@use.ToString()</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">System</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Identifier system URI"
+                                   @bind="identifier.System" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">Value</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Identifier value"
+                                   @bind="identifier.Value" />
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger w-100" 
+                                    @onclick="() => RemoveIdentifier(index)"
+                                    title="Remove">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public List<IdentifierViewModel> Identifiers { get; set; } = new();
+    [Parameter] public EventCallback<List<IdentifierViewModel>> IdentifiersChanged { get; set; }
+
+    private void AddIdentifier()
+    {
+        Identifiers.Add(new IdentifierViewModel { Use = Hl7.Fhir.Model.Identifier.IdentifierUse.Official });
+        NotifyChange();
+    }
+
+    private void RemoveIdentifier(int index)
+    {
+        if (index >= 0 && index < Identifiers.Count)
+        {
+            Identifiers.RemoveAt(index);
+            NotifyChange();
+        }
+    }
+
+    private void NotifyChange()
+    {
+        IdentifiersChanged.InvokeAsync(Identifiers);
+    }
+}

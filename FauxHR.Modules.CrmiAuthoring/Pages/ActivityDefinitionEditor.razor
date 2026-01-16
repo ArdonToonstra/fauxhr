@@ -1,0 +1,887 @@
+@page "/crmi/activity-definition"
+@page "/crmi/activity-definition/new"
+@page "/crmi/activity-definition/{Id}"
+
+@inject CrmiArtifactService ArtifactService
+@inject NavigationManager Navigation
+
+<div class="container-fluid">
+    @* Header *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item">
+                        <a href="/crmi/overview" class="text-decoration-none">
+                            <i class="bi bi-grid-3x3-gap me-1"></i>CRMI Authoring
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">ActivityDefinition</li>
+                </ol>
+            </nav>
+            <h2 class="mb-0">
+                <i class="bi bi-activity me-2"></i>
+                @(IsNew ? "New ActivityDefinition" : (viewModel.Title ?? "Edit ActivityDefinition"))
+            </h2>
+        </div>
+        <div class="d-flex gap-2">
+            @if (!IsNew)
+            {
+                <ArtifactStatusEditor CurrentStatus="@viewModel.Status" 
+                                      OnStatusChange="@HandleStatusChange" />
+            }
+        </div>
+    </div>
+
+    @* Error Display *@
+    <ServerErrorAlert Outcome="@serverError" 
+                      ErrorMessage="@errorMessage" 
+                      OnDismiss="@ClearError" />
+
+    @* Success Message *@
+    @if (showSuccess)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => showSuccess = false"></button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* Tab Navigation *@
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "identity" ? "active" : "")" 
+                        @onclick='() => activeTab = "identity"'>
+                    <i class="bi bi-card-heading me-1"></i>Identification
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "metadata" ? "active" : "")" 
+                        @onclick='() => activeTab = "metadata"'>
+                    <i class="bi bi-calendar me-1"></i>Metadata & Dates
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "contributors" ? "active" : "")" 
+                        @onclick='() => activeTab = "contributors"'>
+                    <i class="bi bi-people me-1"></i>Contributors
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "context" ? "active" : "")" 
+                        @onclick='() => activeTab = "context"'>
+                    <i class="bi bi-geo-alt me-1"></i>Context
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "related" ? "active" : "")" 
+                        @onclick='() => activeTab = "related"'>
+                    <i class="bi bi-link-45deg me-1"></i>Related Artifacts
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "content" ? "active" : "")" 
+                        @onclick='() => activeTab = "content"'>
+                    <i class="bi bi-file-text me-1"></i>Content
+                </button>
+            </li>
+        </ul>
+
+        @* Tab Content *@
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                @if (activeTab == "identity")
+                {
+                    @IdentityTab
+                }
+                else if (activeTab == "metadata")
+                {
+                    @MetadataTab
+                }
+                else if (activeTab == "contributors")
+                {
+                    @ContributorsTab
+                }
+                else if (activeTab == "context")
+                {
+                    @ContextTab
+                }
+                else if (activeTab == "related")
+                {
+                    @RelatedArtifactsTab
+                }
+                else if (activeTab == "content")
+                {
+                    @ContentTab
+                }
+            </div>
+        </div>
+
+        @* Action Buttons *@
+        <div class="d-flex justify-content-between mt-4">
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" @onclick="Cancel">
+                    <i class="bi bi-arrow-left me-1"></i>Cancel
+                </button>
+                @if (IsNew && !IsFirstTab)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="GoToPreviousTab">
+                        <i class="bi bi-chevron-left me-1"></i>Previous
+                    </button>
+                }
+            </div>
+            <div class="d-flex gap-2">
+                @if (IsNew && !IsLastTab)
+                {
+                    <button class="btn btn-outline-primary" @onclick="Save" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                        }
+                        Create
+                    </button>
+                    <button class="btn btn-primary" @onclick="GoToNextTab">
+                        Next<i class="bi bi-chevron-right ms-1"></i>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                        }
+                        @(IsNew ? "Create" : "Save")
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    
+    private bool IsNew => string.IsNullOrEmpty(Id) || Id == "new";
+    
+    // Tab navigation for wizard mode
+    private readonly string[] tabs = { "identity", "metadata", "contributors", "context", "related", "content" };
+    private bool IsFirstTab => activeTab == tabs[0];
+    private bool IsLastTab => activeTab == tabs[^1];
+    
+    private void GoToNextTab()
+    {
+        var currentIndex = Array.IndexOf(tabs, activeTab);
+        if (currentIndex < tabs.Length - 1)
+        {
+            activeTab = tabs[currentIndex + 1];
+        }
+    }
+    
+    private void GoToPreviousTab()
+    {
+        var currentIndex = Array.IndexOf(tabs, activeTab);
+        if (currentIndex > 0)
+        {
+            activeTab = tabs[currentIndex - 1];
+        }
+    }
+    
+    private ActivityDefinitionViewModel viewModel = new();
+    private string activeTab = "identity";
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showSuccess;
+    private string successMessage = "";
+    private Hl7.Fhir.Model.OperationOutcome? serverError;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsNew)
+        {
+            await LoadResource();
+        }
+        else
+        {
+            viewModel = new ActivityDefinitionViewModel
+            {
+                Status = Hl7.Fhir.Model.PublicationStatus.Draft,
+                Date = DateTime.Now
+            };
+        }
+        isLoading = false;
+    }
+
+    private async Task LoadResource()
+    {
+        var result = await ArtifactService.GetActivityDefinitionAsync(Id!);
+        if (result.IsSuccess && result.Resource != null)
+        {
+            viewModel = ActivityDefinitionViewModel.FromActivityDefinition(result.Resource);
+        }
+        else
+        {
+            serverError = result.Outcome;
+            errorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task Save()
+    {
+        ClearError();
+        isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            // Auto-generate canonical URL if name is provided and URL is empty
+            if (string.IsNullOrWhiteSpace(viewModel.Url) && !string.IsNullOrWhiteSpace(viewModel.Name))
+            {
+                viewModel.Url = ArtifactService.GenerateCanonicalUrl("ActivityDefinition", viewModel.Name);
+            }
+
+            var resource = viewModel.ToActivityDefinition();
+
+            if (IsNew)
+            {
+                var result = await ArtifactService.CreateActivityDefinitionAsync(resource);
+                if (result.IsSuccess && result.Resource != null)
+                {
+                    showSuccess = true;
+                    successMessage = "ActivityDefinition created successfully!";
+                    // Navigate to edit page for the new resource
+                    Navigation.NavigateTo($"/crmi/activity-definition/{result.Resource.Id}", replace: true);
+                }
+                else
+                {
+                    serverError = result.Outcome;
+                    errorMessage = result.ErrorMessage;
+                }
+            }
+            else
+            {
+                var result = await ArtifactService.UpdateActivityDefinitionAsync(resource);
+                if (result.IsSuccess && result.Resource != null)
+                {
+                    viewModel = ActivityDefinitionViewModel.FromActivityDefinition(result.Resource);
+                    showSuccess = true;
+                    successMessage = "ActivityDefinition saved successfully!";
+                }
+                else
+                {
+                    serverError = result.Outcome;
+                    errorMessage = result.ErrorMessage;
+                }
+            }
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleStatusChange(Hl7.Fhir.Model.PublicationStatus newStatus)
+    {
+        viewModel.Status = newStatus;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/crmi/overview");
+    }
+
+    private void ClearError()
+    {
+        serverError = null;
+        errorMessage = null;
+    }
+
+    // ==================== Tab Components ====================
+
+    private RenderFragment IdentityTab => __builder =>
+    {
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" placeholder="MachineFriendlyName"
+                       @bind="viewModel.Name" />
+                <small class="text-muted">Machine-friendly name (no spaces, PascalCase recommended)</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" placeholder="Human Friendly Title"
+                       @bind="viewModel.Title" />
+                <small class="text-muted">Human-readable title</small>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label fw-bold">Canonical URL</label>
+                <input type="url" class="form-control" placeholder="https://example.org/fhir/ActivityDefinition/..."
+                       @bind="viewModel.Url" />
+                <small class="text-muted">Leave empty to auto-generate from name</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Version</label>
+                <input type="text" class="form-control" placeholder="1.0.0"
+                       @bind="viewModel.Version" />
+                <small class="text-muted">Semantic version</small>
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Description</label>
+                <textarea class="form-control" rows="4" placeholder="Describe the purpose and usage of this activity definition..."
+                          @bind="viewModel.Description"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Publisher</label>
+                <input type="text" class="form-control" placeholder="Organization or individual name"
+                       @bind="viewModel.Publisher" />
+            </div>
+            <div class="col-md-6">
+                <div class="form-check mt-4">
+                    <input type="checkbox" class="form-check-input" id="experimental"
+                           @bind="viewModel.Experimental" />
+                    <label class="form-check-label" for="experimental">
+                        Experimental (not for production use)
+                    </label>
+                </div>
+            </div>
+            <div class="col-12">
+                <IdentifierEditor Identifiers="@viewModel.Identifiers" 
+                                  IdentifiersChanged="@(ids => viewModel.Identifiers = ids)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment MetadataTab => __builder =>
+    {
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Date <span class="text-danger">*</span></label>
+                <input type="datetime-local" class="form-control" 
+                       @bind="viewModel.Date" />
+                <small class="text-muted">Date of last change</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Approval Date</label>
+                <input type="date" class="form-control" 
+                       @bind="viewModel.ApprovalDate" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Last Review Date</label>
+                <input type="date" class="form-control" 
+                       @bind="viewModel.LastReviewDate" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Effective Period Start</label>
+                <input type="date" class="form-control" 
+                       @bind="viewModel.EffectivePeriod.Start" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Effective Period End</label>
+                <input type="date" class="form-control" 
+                       @bind="viewModel.EffectivePeriod.End" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Purpose</label>
+                <textarea class="form-control" rows="3" placeholder="Why this resource was created..."
+                          @bind="viewModel.Purpose"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Usage <span class="badge bg-info">CRMI Extension</span></label>
+                <textarea class="form-control" rows="3" placeholder="How the artifact is intended to be used..."
+                          @bind="viewModel.Usage"></textarea>
+                <small class="text-muted">artifact-usage extension</small>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label fw-bold">Copyright</label>
+                <textarea class="form-control" rows="2" placeholder="Copyright statement..."
+                          @bind="viewModel.Copyright"></textarea>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Copyright Label <span class="badge bg-info">CRMI</span></label>
+                <input type="text" class="form-control" placeholder="e.g., CC BY 4.0"
+                       @bind="viewModel.CopyrightLabel" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment ContributorsTab => __builder =>
+    {
+        <div class="row g-4">
+            <div class="col-md-6">
+                <ContributorEditor Label="Authors" 
+                                   Contributors="@viewModel.Authors"
+                                   ContributorsChanged="@(c => viewModel.Authors = c)" />
+            </div>
+            <div class="col-md-6">
+                <ContributorEditor Label="Editors" 
+                                   Contributors="@viewModel.Editors"
+                                   ContributorsChanged="@(c => viewModel.Editors = c)" />
+            </div>
+            <div class="col-md-6">
+                <ContributorEditor Label="Reviewers" 
+                                   Contributors="@viewModel.Reviewers"
+                                   ContributorsChanged="@(c => viewModel.Reviewers = c)" />
+            </div>
+            <div class="col-md-6">
+                <ContributorEditor Label="Endorsers" 
+                                   Contributors="@viewModel.Endorsers"
+                                   ContributorsChanged="@(c => viewModel.Endorsers = c)" />
+            </div>
+            <div class="col-12">
+                <ContributorEditor Label="Contacts" 
+                                   Contributors="@viewModel.Contacts"
+                                   ContributorsChanged="@(c => viewModel.Contacts = c)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment ContextTab => __builder =>
+    {
+        <div class="row g-4">
+            <div class="col-12">
+                <UseContextEditor UseContexts="@viewModel.UseContexts"
+                                  UseContextsChanged="@(u => viewModel.UseContexts = u)" />
+            </div>
+            <div class="col-md-6">
+                <CodeableConceptEditor Label="Jurisdictions"
+                                       Concepts="@viewModel.Jurisdictions"
+                                       ConceptsChanged="@(j => viewModel.Jurisdictions = j)" />
+            </div>
+            <div class="col-md-6">
+                <CodeableConceptEditor Label="Topics"
+                                       Concepts="@viewModel.Topics"
+                                       ConceptsChanged="@(t => viewModel.Topics = t)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment RelatedArtifactsTab => __builder =>
+    {
+        <RelatedArtifactEditor RelatedArtifacts="@viewModel.RelatedArtifacts"
+                               RelatedArtifactsChanged="@(r => viewModel.RelatedArtifacts = r)" />
+    };
+
+    private RenderFragment ContentTab => __builder =>
+    {
+        <div class="row g-3">
+            @* Row 1: Kind and Profile *@
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Kind (Resource Type)</label>
+                <select class="form-select" @bind="viewModel.Kind">
+                    <option value="">-- Select resource kind --</option>
+                    @foreach (var kind in Enum.GetValues<Hl7.Fhir.Model.ActivityDefinition.RequestResourceType>())
+                    {
+                        <option value="@kind">@kind.ToString()</option>
+                    }
+                </select>
+                <small class="text-muted">The kind of resource that results from this activity</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Profile</label>
+                <input type="text" class="form-control" placeholder="Canonical URL of profile"
+                       @bind="viewModel.Profile" />
+                <small class="text-muted">Profile the resulting resource should conform to</small>
+            </div>
+
+            @* Row 2: Intent and Priority *@
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Intent</label>
+                <select class="form-select" @bind="viewModel.Intent">
+                    <option value="">-- Select intent --</option>
+                    <option value="proposal">Proposal</option>
+                    <option value="plan">Plan</option>
+                    <option value="directive">Directive</option>
+                    <option value="order">Order</option>
+                    <option value="original-order">Original Order</option>
+                    <option value="reflex-order">Reflex Order</option>
+                    <option value="filler-order">Filler Order</option>
+                    <option value="instance-order">Instance Order</option>
+                    <option value="option">Option</option>
+                </select>
+                <small class="text-muted">The intent of the activity definition</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Priority</label>
+                <select class="form-select" @bind="viewModel.Priority">
+                    <option value="">-- Select priority --</option>
+                    <option value="routine">Routine</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="asap">ASAP</option>
+                    <option value="stat">STAT</option>
+                </select>
+                <small class="text-muted">Priority of the activity</small>
+            </div>
+
+            @* Row 3: Code *@
+            <div class="col-12">
+                <label class="form-label fw-bold">Code</label>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" placeholder="Code system"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.System ?? "")"
+                               @onchange="e => UpdateCodeSystem(e.Value?.ToString())" />
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Code"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Code ?? "")"
+                               @onchange="e => UpdateCode(e.Value?.ToString())" />
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" placeholder="Display"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Display ?? "")"
+                               @onchange="e => UpdateCodeDisplay(e.Value?.ToString())" />
+                    </div>
+                    <div class="col-12">
+                        <input type="text" class="form-control" placeholder="Text (free text description)"
+                               value="@(viewModel.Code?.Text ?? "")"
+                               @onchange="e => UpdateCodeText(e.Value?.ToString())" />
+                    </div>
+                </div>
+                <small class="text-muted">Detailed description of the activity type</small>
+            </div>
+
+            @* Row 4: Do Not Perform *@
+            <div class="col-12">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="doNotPerform"
+                           @bind="viewModel.DoNotPerform" />
+                    <label class="form-check-label" for="doNotPerform">
+                        <strong>Do Not Perform</strong> - True if the activity should NOT be performed
+                    </label>
+                </div>
+            </div>
+
+            @* Row 5: Timing *@
+            <div class="col-12">
+                <hr class="my-3" />
+                <h6><i class="bi bi-clock me-2"></i>Timing</h6>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Timing Type</label>
+                <select class="form-select" @bind="viewModel.Timing.TimingType">
+                    <option value="DateTime">DateTime</option>
+                    <option value="Period">Period</option>
+                    <option value="Duration">Duration</option>
+                    <option value="Timing">Timing</option>
+                </select>
+            </div>
+            <div class="col-md-9">
+                @if (viewModel.Timing.TimingType == "DateTime")
+                {
+                    <label class="form-label">Date/Time</label>
+                    <input type="datetime-local" class="form-control" @bind="viewModel.Timing.DateTimeValue" />
+                }
+                else if (viewModel.Timing.TimingType == "Period")
+                {
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Start</label>
+                            <input type="datetime-local" class="form-control" @bind="viewModel.Timing.PeriodStart" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End</label>
+                            <input type="datetime-local" class="form-control" @bind="viewModel.Timing.PeriodEnd" />
+                        </div>
+                    </div>
+                }
+                else if (viewModel.Timing.TimingType == "Duration")
+                {
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Value</label>
+                            <input type="number" step="0.01" class="form-control" @bind="viewModel.Timing.DurationValue" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Unit</label>
+                            <select class="form-select" @bind="viewModel.Timing.DurationUnit">
+                                <option value="">-- Select unit --</option>
+                                <option value="s">Seconds (s)</option>
+                                <option value="min">Minutes (min)</option>
+                                <option value="h">Hours (h)</option>
+                                <option value="d">Days (d)</option>
+                                <option value="wk">Weeks (wk)</option>
+                                <option value="mo">Months (mo)</option>
+                                <option value="a">Years (a)</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+                else if (viewModel.Timing.TimingType == "Timing")
+                {
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label">Frequency</label>
+                            <input type="number" class="form-control" @bind="viewModel.Timing.TimingFrequency" placeholder="e.g., 3" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Period</label>
+                            <input type="number" step="0.01" class="form-control" @bind="viewModel.Timing.TimingPeriod" placeholder="e.g., 1" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Period Unit</label>
+                            <select class="form-select" @bind="viewModel.Timing.TimingPeriodUnit">
+                                <option value="">-- Select --</option>
+                                <option value="s">Seconds</option>
+                                <option value="min">Minutes</option>
+                                <option value="h">Hours</option>
+                                <option value="d">Days</option>
+                                <option value="wk">Weeks</option>
+                                <option value="mo">Months</option>
+                                <option value="a">Years</option>
+                            </select>
+                        </div>
+                    </div>
+                    <small class="text-muted">e.g., 3 times per 1 day</small>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Count</label>
+                            <input type="number" class="form-control" @bind="viewModel.Timing.TimingCount" placeholder="Total occurrences" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Count Max</label>
+                            <input type="number" class="form-control" @bind="viewModel.Timing.TimingCountMax" placeholder="Max occurrences" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Duration</label>
+                            <input type="number" step="0.01" class="form-control" @bind="viewModel.Timing.TimingDuration" placeholder="e.g., 30" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Duration Max</label>
+                            <input type="number" step="0.01" class="form-control" @bind="viewModel.Timing.TimingDurationMax" placeholder="Max" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Duration Unit</label>
+                            <select class="form-select" @bind="viewModel.Timing.TimingDurationUnit">
+                                <option value="">-- Select --</option>
+                                <option value="s">Seconds</option>
+                                <option value="min">Minutes</option>
+                                <option value="h">Hours</option>
+                                <option value="d">Days</option>
+                                <option value="wk">Weeks</option>
+                                <option value="mo">Months</option>
+                                <option value="a">Years</option>
+                            </select>
+                        </div>
+                    </div>
+                    <small class="text-muted">Count: total repetitions. Duration: how long each occurrence lasts.</small>
+                }
+            </div>
+
+            @* Row 6: Participants *@
+            <div class="col-12">
+                <hr class="my-3" />
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="bi bi-people me-2"></i>Participants</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddParticipant">
+                        <i class="bi bi-plus-lg me-1"></i>Add Participant
+                    </button>
+                </div>
+            </div>
+            @foreach (var (participant, index) in viewModel.Participants.Select((p, i) => (p, i)))
+            {
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body py-2">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label">Type <span class="text-danger">*</span></label>
+                                    <select class="form-select form-select-sm" @bind="participant.Type">
+                                        <option value="">-- Select type --</option>
+                                        <option value="patient">Patient</option>
+                                        <option value="practitioner">Practitioner</option>
+                                        <option value="related-person">Related Person</option>
+                                        <option value="device">Device</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Role System</label>
+                                    <input type="text" class="form-control form-control-sm" placeholder="Code system"
+                                           value="@(participant.Role.Codings.FirstOrDefault()?.System ?? "")"
+                                           @onchange="e => UpdateParticipantRoleSystem(index, e.Value?.ToString())" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Role Code</label>
+                                    <input type="text" class="form-control form-control-sm" placeholder="Code"
+                                           value="@(participant.Role.Codings.FirstOrDefault()?.Code ?? "")"
+                                           @onchange="e => UpdateParticipantRoleCode(index, e.Value?.ToString())" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Role Display</label>
+                                    <input type="text" class="form-control form-control-sm" placeholder="Display"
+                                           value="@(participant.Role.Codings.FirstOrDefault()?.Display ?? "")"
+                                           @onchange="e => UpdateParticipantRoleDisplay(index, e.Value?.ToString())" />
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveParticipant(index)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* Row 7: Dynamic Values *@
+            <div class="col-12">
+                <hr class="my-3" />
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="bi bi-code-square me-2"></i>Dynamic Values</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddDynamicValue">
+                        <i class="bi bi-plus-lg me-1"></i>Add Dynamic Value
+                    </button>
+                </div>
+            </div>
+            @foreach (var (dynamicValue, index) in viewModel.DynamicValues.Select((d, i) => (d, i)))
+            {
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body py-2">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label">Path <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" placeholder="e.g., status"
+                                           @bind="dynamicValue.Path" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Language</label>
+                                    <select class="form-select form-select-sm" @bind="dynamicValue.ExpressionLanguage">
+                                        <option value="text/fhirpath">FHIRPath</option>
+                                        <option value="text/cql">CQL</option>
+                                        <option value="text/cql-identifier">CQL Identifier</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Expression <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" placeholder="e.g., 'active'"
+                                           @bind="dynamicValue.ExpressionValue" />
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDynamicValue(index)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="col-12">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Description (optional)"
+                                           @bind="dynamicValue.ExpressionDescription" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    };
+
+    private void UpdateCodeSystem(string? value)
+    {
+        EnsureCode();
+        viewModel.Code!.Codings[0].System = value;
+    }
+
+    private void UpdateCode(string? value)
+    {
+        EnsureCode();
+        viewModel.Code!.Codings[0].Code = value;
+    }
+
+    private void UpdateCodeDisplay(string? value)
+    {
+        EnsureCode();
+        viewModel.Code!.Codings[0].Display = value;
+    }
+
+    private void UpdateCodeText(string? value)
+    {
+        EnsureCode();
+        viewModel.Code!.Text = value;
+    }
+
+    private void EnsureCode()
+    {
+        viewModel.Code ??= new CodeableConceptViewModel();
+        if (viewModel.Code.Codings.Count == 0)
+        {
+            viewModel.Code.Codings.Add(new CodingViewModel());
+        }
+    }
+
+    // Participant helpers
+    private void AddParticipant()
+    {
+        viewModel.Participants.Add(new ParticipantViewModel());
+    }
+
+    private void RemoveParticipant(int index)
+    {
+        if (index >= 0 && index < viewModel.Participants.Count)
+        {
+            viewModel.Participants.RemoveAt(index);
+        }
+    }
+
+    private void EnsureParticipantRole(int index)
+    {
+        if (index >= 0 && index < viewModel.Participants.Count)
+        {
+            viewModel.Participants[index].Role ??= new CodeableConceptViewModel();
+            if (viewModel.Participants[index].Role.Codings.Count == 0)
+            {
+                viewModel.Participants[index].Role.Codings.Add(new CodingViewModel());
+            }
+        }
+    }
+
+    private void UpdateParticipantRoleSystem(int index, string? value)
+    {
+        EnsureParticipantRole(index);
+        viewModel.Participants[index].Role.Codings[0].System = value;
+    }
+
+    private void UpdateParticipantRoleCode(int index, string? value)
+    {
+        EnsureParticipantRole(index);
+        viewModel.Participants[index].Role.Codings[0].Code = value;
+    }
+
+    private void UpdateParticipantRoleDisplay(int index, string? value)
+    {
+        EnsureParticipantRole(index);
+        viewModel.Participants[index].Role.Codings[0].Display = value;
+    }
+
+    // Dynamic Value helpers
+    private void AddDynamicValue()
+    {
+        viewModel.DynamicValues.Add(new DynamicValueViewModel());
+    }
+
+    private void RemoveDynamicValue(int index)
+    {
+        if (index >= 0 && index < viewModel.DynamicValues.Count)
+        {
+            viewModel.DynamicValues.RemoveAt(index);
+        }
+    }
+}

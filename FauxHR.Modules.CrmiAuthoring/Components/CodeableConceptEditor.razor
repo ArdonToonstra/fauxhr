@@ -1,0 +1,141 @@
+@* Editor for a list of CodeableConcept entries (jurisdiction, topic) *@
+
+<div class="card border-0 bg-light">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-bold">@Label</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddConcept">
+            <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+    </div>
+    
+    @if (Concepts.Count == 0)
+    {
+        <div class="card-body text-muted fst-italic">
+            No @Label.ToLowerInvariant() added yet.
+        </div>
+    }
+    else
+    {
+        <ul class="list-group list-group-flush">
+            @for (int i = 0; i < Concepts.Count; i++)
+            {
+                var index = i;
+                var concept = Concepts[i];
+                
+                <li class="list-group-item bg-transparent">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">System</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Code system URL"
+                                   list="@($"systems-{index}")"
+                                   value="@(concept.Codings.FirstOrDefault()?.System ?? "")"
+                                   @onchange="e => UpdateCodingSystem(index, e.Value?.ToString())" />
+                            <datalist id="@($"systems-{index}")">
+                                @foreach (var system in CommonSystems)
+                                {
+                                    <option value="@system.Url">@system.Name</option>
+                                }
+                            </datalist>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted mb-1">Code</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Code"
+                                   value="@(concept.Codings.FirstOrDefault()?.Code ?? "")"
+                                   @onchange="e => UpdateCodingCode(index, e.Value?.ToString())" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted mb-1">Display</label>
+                            <input type="text" 
+                                   class="form-control form-control-sm" 
+                                   placeholder="Display text"
+                                   value="@(concept.Codings.FirstOrDefault()?.Display ?? "")"
+                                   @onchange="e => UpdateCodingDisplay(index, e.Value?.ToString())" />
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger w-100" 
+                                    @onclick="() => RemoveConcept(index)"
+                                    title="Remove">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Concepts";
+    [Parameter] public List<CodeableConceptViewModel> Concepts { get; set; } = new();
+    [Parameter] public EventCallback<List<CodeableConceptViewModel>> ConceptsChanged { get; set; }
+
+    private static readonly (string Name, string Url)[] CommonSystems = new[]
+    {
+        ("ISO 3166 (Countries)", "urn:iso:std:iso:3166"),
+        ("SNOMED CT", "http://snomed.info/sct"),
+        ("LOINC", "http://loinc.org"),
+        ("ICD-10", "http://hl7.org/fhir/sid/icd-10"),
+        ("Jurisdiction", "http://unstats.un.org/unsd/methods/m49/m49.htm"),
+        ("Definition Topic", "http://terminology.hl7.org/CodeSystem/definition-topic")
+    };
+
+    private void AddConcept()
+    {
+        var concept = new CodeableConceptViewModel();
+        concept.Codings.Add(new CodingViewModel());
+        Concepts.Add(concept);
+        NotifyChange();
+    }
+
+    private void RemoveConcept(int index)
+    {
+        if (index >= 0 && index < Concepts.Count)
+        {
+            Concepts.RemoveAt(index);
+            NotifyChange();
+        }
+    }
+
+    private void UpdateCodingSystem(int index, string? value)
+    {
+        EnsureCoding(index);
+        Concepts[index].Codings[0].System = value;
+        NotifyChange();
+    }
+
+    private void UpdateCodingCode(int index, string? value)
+    {
+        EnsureCoding(index);
+        Concepts[index].Codings[0].Code = value;
+        NotifyChange();
+    }
+
+    private void UpdateCodingDisplay(int index, string? value)
+    {
+        EnsureCoding(index);
+        Concepts[index].Codings[0].Display = value;
+        NotifyChange();
+    }
+
+    private void EnsureCoding(int index)
+    {
+        if (index >= 0 && index < Concepts.Count)
+        {
+            if (Concepts[index].Codings.Count == 0)
+            {
+                Concepts[index].Codings.Add(new CodingViewModel());
+            }
+        }
+    }
+
+    private void NotifyChange()
+    {
+        ConceptsChanged.InvokeAsync(Concepts);
+    }
+}

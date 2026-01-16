@@ -10,7 +10,7 @@ public class PractitionerContextService
 {
     private readonly AppState _appState;
     private readonly ILocalStorageService _localStorage;
-    private readonly FhirJsonDeserializer _parser = new();
+    private readonly FhirJsonDeserializer _deserializer = new();
     private readonly FhirJsonSerializer _serializer = new();
     
     private const string PRACTITIONER_KEY = "CurrentPractitioner";
@@ -30,6 +30,9 @@ public class PractitionerContextService
         
         await SaveToStorageAsync(defaultPractitioner, defaultRole);
         _appState.SetPractitioner(defaultPractitioner, defaultRole);
+        
+        // Set the default organization context
+        _appState.SetOrganization("Leiderdorp University Medical Center", "nl-core-organization-01");
     }
 
     public async Task SetPractitionerAsync(Practitioner practitioner, PractitionerRole? role = null)
@@ -50,12 +53,12 @@ public class PractitionerContextService
 
             if (!string.IsNullOrEmpty(practitionerJson))
             {
-                practitioner = _parser.Deserialize<Practitioner>(practitionerJson);
+                practitioner = _deserializer.Deserialize<Practitioner>(practitionerJson);
             }
 
             if (!string.IsNullOrEmpty(roleJson))
             {
-                role = _parser.Deserialize<PractitionerRole>(roleJson);
+                role = _deserializer.Deserialize<PractitionerRole>(roleJson);
             }
 
             return (practitioner, role);
@@ -213,7 +216,7 @@ public class PractitionerContextService
     }
   ]
 }";
-        return _parser.Deserialize<Practitioner>(json);
+        return _deserializer.Deserialize<Practitioner>(json);
     }
 
     private PractitionerRole GetDefaultPractitionerRole()
@@ -256,6 +259,6 @@ public class PractitionerContextService
     }
   ]
 }";
-        return _parser.Deserialize<PractitionerRole>(json);
+        return _deserializer.Deserialize<PractitionerRole>(json);
     }
 }

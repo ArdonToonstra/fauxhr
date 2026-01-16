@@ -1,0 +1,698 @@
+@page "/crmi/charge-item-definition"
+@page "/crmi/charge-item-definition/new"
+@page "/crmi/charge-item-definition/{Id}"
+
+@inject CrmiArtifactService ArtifactService
+@inject NavigationManager Navigation
+
+<div class="container-fluid">
+    @* Header *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item">
+                        <a href="/crmi/overview" class="text-decoration-none">
+                            <i class="bi bi-grid-3x3-gap me-1"></i>CRMI Authoring
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active">ChargeItemDefinition</li>
+                </ol>
+            </nav>
+            <h2 class="mb-0">
+                <i class="bi bi-currency-euro me-2"></i>
+                @(IsNew ? "New ChargeItemDefinition" : (viewModel.Title ?? "Edit ChargeItemDefinition"))
+            </h2>
+        </div>
+        <div class="d-flex gap-2">
+            @if (!IsNew)
+            {
+                <ArtifactStatusEditor CurrentStatus="@viewModel.Status" 
+                                      OnStatusChange="@HandleStatusChange" />
+            }
+        </div>
+    </div>
+
+    @* Error Display *@
+    <ServerErrorAlert Outcome="@serverError" 
+                      ErrorMessage="@errorMessage" 
+                      OnDismiss="@ClearError" />
+
+    @* Success Message *@
+    @if (showSuccess)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => showSuccess = false"></button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* Tab Navigation *@
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "identity" ? "active" : "")" 
+                        @onclick='() => activeTab = "identity"'>
+                    <i class="bi bi-card-heading me-1"></i>Identification
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "metadata" ? "active" : "")" 
+                        @onclick='() => activeTab = "metadata"'>
+                    <i class="bi bi-calendar me-1"></i>Metadata & Dates
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "context" ? "active" : "")" 
+                        @onclick='() => activeTab = "context"'>
+                    <i class="bi bi-geo-alt me-1"></i>Context
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "billing" ? "active" : "")" 
+                        @onclick='() => activeTab = "billing"'>
+                    <i class="bi bi-receipt me-1"></i>Billing Details
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "applicability" ? "active" : "")" 
+                        @onclick='() => activeTab = "applicability"'>
+                    <i class="bi bi-funnel me-1"></i>Applicability
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "pricing" ? "active" : "")" 
+                        @onclick='() => activeTab = "pricing"'>
+                    <i class="bi bi-cash-stack me-1"></i>Pricing
+                </button>
+            </li>
+        </ul>
+
+        @* Tab Content *@
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                @if (activeTab == "identity")
+                {
+                    @IdentityTab
+                }
+                else if (activeTab == "metadata")
+                {
+                    @MetadataTab
+                }
+                else if (activeTab == "context")
+                {
+                    @ContextTab
+                }
+                else if (activeTab == "billing")
+                {
+                    @BillingTab
+                }
+                else if (activeTab == "applicability")
+                {
+                    @ApplicabilityTab
+                }
+                else if (activeTab == "pricing")
+                {
+                    @PricingTab
+                }
+            </div>
+        </div>
+
+        @* Action Buttons *@
+        <div class="d-flex justify-content-between mt-4">
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" @onclick="Cancel">
+                    <i class="bi bi-arrow-left me-1"></i>Cancel
+                </button>
+                @if (IsNew && !IsFirstTab)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="GoToPreviousTab">
+                        <i class="bi bi-chevron-left me-1"></i>Previous
+                    </button>
+                }
+            </div>
+            <div class="d-flex gap-2">
+                @if (IsNew && !IsLastTab)
+                {
+                    <button class="btn btn-outline-primary" @onclick="Save" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                        }
+                        Create
+                    </button>
+                    <button class="btn btn-primary" @onclick="GoToNextTab">
+                        Next<i class="bi bi-chevron-right ms-1"></i>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                        }
+                        @(IsNew ? "Create" : "Save")
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    
+    private bool IsNew => string.IsNullOrEmpty(Id) || Id == "new";
+    
+    // Tab navigation for wizard mode
+    private readonly string[] tabs = { "identity", "metadata", "context", "billing", "applicability", "pricing" };
+    private bool IsFirstTab => activeTab == tabs[0];
+    private bool IsLastTab => activeTab == tabs[^1];
+    
+    private void GoToNextTab()
+    {
+        var currentIndex = Array.IndexOf(tabs, activeTab);
+        if (currentIndex < tabs.Length - 1)
+        {
+            activeTab = tabs[currentIndex + 1];
+        }
+    }
+    
+    private void GoToPreviousTab()
+    {
+        var currentIndex = Array.IndexOf(tabs, activeTab);
+        if (currentIndex > 0)
+        {
+            activeTab = tabs[currentIndex - 1];
+        }
+    }
+    
+    private ChargeItemDefinitionViewModel viewModel = new();
+    private string activeTab = "identity";
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showSuccess;
+    private string successMessage = "";
+    private Hl7.Fhir.Model.OperationOutcome? serverError;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsNew)
+        {
+            await LoadResource();
+        }
+        else
+        {
+            viewModel = new ChargeItemDefinitionViewModel
+            {
+                Status = Hl7.Fhir.Model.PublicationStatus.Draft,
+                Date = DateTime.Now
+            };
+        }
+        isLoading = false;
+    }
+
+    private async Task LoadResource()
+    {
+        var result = await ArtifactService.GetChargeItemDefinitionAsync(Id!);
+        if (result.IsSuccess && result.Resource != null)
+        {
+            viewModel = ChargeItemDefinitionViewModel.FromChargeItemDefinition(result.Resource);
+        }
+        else
+        {
+            serverError = result.Outcome;
+            errorMessage = result.ErrorMessage;
+        }
+    }
+
+    private async Task Save()
+    {
+        ClearError();
+        isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            // Auto-generate canonical URL if name is provided and URL is empty
+            if (string.IsNullOrWhiteSpace(viewModel.Url) && !string.IsNullOrWhiteSpace(viewModel.Name))
+            {
+                viewModel.Url = ArtifactService.GenerateCanonicalUrl("ChargeItemDefinition", viewModel.Name);
+            }
+
+            var resource = viewModel.ToChargeItemDefinition();
+
+            if (IsNew)
+            {
+                var result = await ArtifactService.CreateChargeItemDefinitionAsync(resource);
+                if (result.IsSuccess && result.Resource != null)
+                {
+                    showSuccess = true;
+                    successMessage = "ChargeItemDefinition created successfully!";
+                    Navigation.NavigateTo($"/crmi/charge-item-definition/{result.Resource.Id}", replace: true);
+                }
+                else
+                {
+                    serverError = result.Outcome;
+                    errorMessage = result.ErrorMessage;
+                }
+            }
+            else
+            {
+                var result = await ArtifactService.UpdateChargeItemDefinitionAsync(resource);
+                if (result.IsSuccess && result.Resource != null)
+                {
+                    viewModel = ChargeItemDefinitionViewModel.FromChargeItemDefinition(result.Resource);
+                    showSuccess = true;
+                    successMessage = "ChargeItemDefinition saved successfully!";
+                }
+                else
+                {
+                    serverError = result.Outcome;
+                    errorMessage = result.ErrorMessage;
+                }
+            }
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleStatusChange(Hl7.Fhir.Model.PublicationStatus newStatus)
+    {
+        viewModel.Status = newStatus;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/crmi/overview");
+    }
+
+    private void ClearError()
+    {
+        serverError = null;
+        errorMessage = null;
+    }
+
+    // ==================== Tab Components ====================
+
+    private RenderFragment IdentityTab => __builder =>
+    {
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Name</label>
+                <input type="text" class="form-control" placeholder="MachineFriendlyName"
+                       @bind="viewModel.Name" />
+                <small class="text-muted">Machine-friendly name</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" placeholder="Human Friendly Title"
+                       @bind="viewModel.Title" />
+            </div>
+            <div class="col-md-8">
+                <label class="form-label fw-bold">Canonical URL <span class="text-danger">*</span></label>
+                <input type="url" class="form-control" placeholder="https://example.org/fhir/ChargeItemDefinition/..."
+                       @bind="viewModel.Url" />
+                <small class="text-muted">Leave empty to auto-generate from name</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Version</label>
+                <input type="text" class="form-control" placeholder="1.0.0"
+                       @bind="viewModel.Version" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Description <span class="text-danger">*</span></label>
+                <textarea class="form-control" rows="4" placeholder="Describe this charge item definition..."
+                          @bind="viewModel.Description"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Publisher</label>
+                <input type="text" class="form-control" placeholder="Organization or individual"
+                       @bind="viewModel.Publisher" />
+            </div>
+            <div class="col-md-6">
+                <div class="form-check mt-4">
+                    <input type="checkbox" class="form-check-input" id="experimental"
+                           @bind="viewModel.Experimental" />
+                    <label class="form-check-label" for="experimental">
+                        Experimental (not for production use)
+                    </label>
+                </div>
+            </div>
+            <div class="col-12">
+                <IdentifierEditor Identifiers="@viewModel.Identifiers" 
+                                  IdentifiersChanged="@(ids => viewModel.Identifiers = ids)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment MetadataTab => __builder =>
+    {
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Date</label>
+                <input type="datetime-local" class="form-control" @bind="viewModel.Date" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Approval Date</label>
+                <input type="date" class="form-control" @bind="viewModel.ApprovalDate" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Last Review Date</label>
+                <input type="date" class="form-control" @bind="viewModel.LastReviewDate" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Effective Period Start</label>
+                <input type="date" class="form-control" @bind="viewModel.EffectivePeriod.Start" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Effective Period End</label>
+                <input type="date" class="form-control" @bind="viewModel.EffectivePeriod.End" />
+            </div>
+            <div class="col-md-8">
+                <label class="form-label fw-bold">Copyright</label>
+                <textarea class="form-control" rows="2" @bind="viewModel.Copyright"></textarea>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Copyright Label <span class="badge bg-info">CRMI</span></label>
+                <input type="text" class="form-control" placeholder="e.g., CC BY 4.0"
+                       @bind="viewModel.CopyrightLabel" />
+            </div>
+            <div class="col-12">
+                <ContributorEditor Label="Contacts" 
+                                   Contributors="@viewModel.Contacts"
+                                   ContributorsChanged="@(c => viewModel.Contacts = c)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment ContextTab => __builder =>
+    {
+        <div class="row g-4">
+            <div class="col-12">
+                <UseContextEditor UseContexts="@viewModel.UseContexts"
+                                  UseContextsChanged="@(u => viewModel.UseContexts = u)" />
+            </div>
+            <div class="col-12">
+                <CodeableConceptEditor Label="Jurisdictions"
+                                       Concepts="@viewModel.Jurisdictions"
+                                       ConceptsChanged="@(j => viewModel.Jurisdictions = j)" />
+            </div>
+        </div>
+    };
+
+    private RenderFragment BillingTab => __builder =>
+    {
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label fw-bold">Billing Code</label>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" placeholder="Code system"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.System ?? "")"
+                               @onchange="e => UpdateBillingCodeSystem(e.Value?.ToString())" />
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" placeholder="Code"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Code ?? "")"
+                               @onchange="e => UpdateBillingCode(e.Value?.ToString())" />
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" placeholder="Display"
+                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Display ?? "")"
+                               @onchange="e => UpdateBillingCodeDisplay(e.Value?.ToString())" />
+                    </div>
+                </div>
+                <small class="text-muted">The billing code this definition applies to</small>
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Derived From URIs</label>
+                <StringListEditor Items="@viewModel.DerivedFromUris"
+                                  ItemsChanged="@(items => viewModel.DerivedFromUris = items)"
+                                  Placeholder="URI this is derived from" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Part Of (Canonical)</label>
+                <StringListEditor Items="@viewModel.PartOf"
+                                  ItemsChanged="@(items => viewModel.PartOf = items)"
+                                  Placeholder="Canonical URL" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Replaces (Canonical)</label>
+                <StringListEditor Items="@viewModel.Replaces"
+                                  ItemsChanged="@(items => viewModel.Replaces = items)"
+                                  Placeholder="Canonical URL of replaced definition" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">Instances (References)</label>
+                <StringListEditor Items="@viewModel.Instances"
+                                  ItemsChanged="@(items => viewModel.Instances = items)"
+                                  Placeholder="Reference to ChargeItem, Device, Medication, etc." />
+            </div>
+        </div>
+    };
+
+    private RenderFragment ApplicabilityTab => __builder =>
+    {
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Applicability Rules</h5>
+                <button class="btn btn-sm btn-outline-primary" @onclick="AddApplicability">
+                    <i class="bi bi-plus-lg me-1"></i>Add Rule
+                </button>
+            </div>
+            
+            @if (viewModel.Applicabilities.Count == 0)
+            {
+                <div class="text-muted fst-italic">No applicability rules defined.</div>
+            }
+            else
+            {
+                @for (int i = 0; i < viewModel.Applicabilities.Count; i++)
+                {
+                    var index = i;
+                    var rule = viewModel.Applicabilities[i];
+                    
+                    <div class="card mb-2 border">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="badge bg-secondary">Rule #@(index + 1)</span>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveApplicability(index)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small">Description</label>
+                                    <input type="text" class="form-control form-control-sm"
+                                           @bind="rule.Description" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">Language</label>
+                                    <select class="form-select form-select-sm" @bind="rule.Language">
+                                        <option value="">-- Select --</option>
+                                        <option value="text/cql">CQL</option>
+                                        <option value="text/fhirpath">FHIRPath</option>
+                                        <option value="application/x-fhir-query">FHIR Query</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label small">Expression</label>
+                                    <input type="text" class="form-control form-control-sm"
+                                           @bind="rule.Expression" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    };
+
+    private RenderFragment PricingTab => __builder =>
+    {
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Property Groups</h5>
+                <button class="btn btn-sm btn-outline-primary" @onclick="AddPropertyGroup">
+                    <i class="bi bi-plus-lg me-1"></i>Add Property Group
+                </button>
+            </div>
+            
+            @if (viewModel.PropertyGroups.Count == 0)
+            {
+                <div class="text-muted fst-italic">No property groups defined.</div>
+            }
+            else
+            {
+                @for (int i = 0; i < viewModel.PropertyGroups.Count; i++)
+                {
+                    var groupIndex = i;
+                    var group = viewModel.PropertyGroups[i];
+                    
+                    <div class="card mb-3 border">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Property Group #@(groupIndex + 1)</span>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemovePropertyGroup(groupIndex)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <h6>Price Components</h6>
+                            <button class="btn btn-sm btn-outline-secondary mb-2" 
+                                    @onclick="() => AddPriceComponent(groupIndex)">
+                                <i class="bi bi-plus-lg me-1"></i>Add Price Component
+                            </button>
+                            
+                            @if (group.PriceComponents.Count == 0)
+                            {
+                                <div class="text-muted fst-italic small">No price components.</div>
+                            }
+                            else
+                            {
+                                @for (int j = 0; j < group.PriceComponents.Count; j++)
+                                {
+                                    var pcIndex = j;
+                                    var pc = group.PriceComponents[j];
+                                    
+                                    <div class="row g-2 mb-2 p-2 bg-light rounded">
+                                        <div class="col-md-3">
+                                            <label class="form-label small">Type</label>
+                                            <select class="form-select form-select-sm" @bind="pc.Type">
+                                                <option value="">-- Type --</option>
+                                                @foreach (var type in Enum.GetValues<Hl7.Fhir.Model.InvoicePriceComponentType>())
+                                                {
+                                                    <option value="@type">@type.ToString()</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small">Factor</label>
+                                            <input type="number" step="0.01" class="form-control form-control-sm"
+                                                   @bind="pc.Factor" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small">Amount</label>
+                                            <input type="number" step="0.01" class="form-control form-control-sm"
+                                                   @bind="pc.Amount" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small">Currency</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   placeholder="EUR" @bind="pc.Currency" />
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button class="btn btn-sm btn-outline-danger w-100" 
+                                                    @onclick="() => RemovePriceComponent(groupIndex, pcIndex)">
+                                                <i class="bi bi-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    };
+
+    // Helper methods for billing code
+    private void UpdateBillingCodeSystem(string? value)
+    {
+        EnsureBillingCode();
+        viewModel.Code!.Codings[0].System = value;
+    }
+
+    private void UpdateBillingCode(string? value)
+    {
+        EnsureBillingCode();
+        viewModel.Code!.Codings[0].Code = value;
+    }
+
+    private void UpdateBillingCodeDisplay(string? value)
+    {
+        EnsureBillingCode();
+        viewModel.Code!.Codings[0].Display = value;
+    }
+
+    private void EnsureBillingCode()
+    {
+        viewModel.Code ??= new CodeableConceptViewModel();
+        if (viewModel.Code.Codings.Count == 0)
+        {
+            viewModel.Code.Codings.Add(new CodingViewModel());
+        }
+    }
+
+    // Applicability helpers
+    private void AddApplicability()
+    {
+        viewModel.Applicabilities.Add(new ApplicabilityViewModel());
+    }
+
+    private void RemoveApplicability(int index)
+    {
+        if (index >= 0 && index < viewModel.Applicabilities.Count)
+        {
+            viewModel.Applicabilities.RemoveAt(index);
+        }
+    }
+
+    // Property group helpers
+    private void AddPropertyGroup()
+    {
+        viewModel.PropertyGroups.Add(new PropertyGroupViewModel());
+    }
+
+    private void RemovePropertyGroup(int index)
+    {
+        if (index >= 0 && index < viewModel.PropertyGroups.Count)
+        {
+            viewModel.PropertyGroups.RemoveAt(index);
+        }
+    }
+
+    private void AddPriceComponent(int groupIndex)
+    {
+        if (groupIndex >= 0 && groupIndex < viewModel.PropertyGroups.Count)
+        {
+            viewModel.PropertyGroups[groupIndex].PriceComponents.Add(new PriceComponentViewModel { Currency = "EUR" });
+        }
+    }
+
+    private void RemovePriceComponent(int groupIndex, int componentIndex)
+    {
+        if (groupIndex >= 0 && groupIndex < viewModel.PropertyGroups.Count)
+        {
+            var group = viewModel.PropertyGroups[groupIndex];
+            if (componentIndex >= 0 && componentIndex < group.PriceComponents.Count)
+            {
+                group.PriceComponents.RemoveAt(componentIndex);
+            }
+        }
+    }
+}

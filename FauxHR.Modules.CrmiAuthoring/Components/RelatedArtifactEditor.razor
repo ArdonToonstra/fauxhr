@@ -1,0 +1,146 @@
+@using Hl7.Fhir.Model
+
+@* Editor for a list of RelatedArtifact entries with CRMI extensions *@
+
+<div class="card border-0 bg-light">
+    <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Related Artifacts</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddRelatedArtifact">
+            <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+    </div>
+    
+    @if (RelatedArtifacts.Count == 0)
+    {
+        <div class="card-body text-muted fst-italic">
+            No related artifacts added yet.
+        </div>
+    }
+    else
+    {
+        <div class="card-body p-2">
+            @for (int i = 0; i < RelatedArtifacts.Count; i++)
+            {
+                var index = i;
+                var artifact = RelatedArtifacts[i];
+                
+                <div class="card mb-2 border">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary">#@(index + 1)</span>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-danger" 
+                                    @onclick="() => RemoveRelatedArtifact(index)"
+                                    title="Remove">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Type *</label>
+                                <select class="form-select form-select-sm" @bind="artifact.Type">
+                                    <option value="">-- Select type --</option>
+                                    @foreach (var type in Enum.GetValues<RelatedArtifact.RelatedArtifactType>())
+                                    {
+                                        <option value="@type">@type.ToString()</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Label</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Short label"
+                                       @bind="artifact.Label" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Display</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Display text"
+                                       @bind="artifact.Display" />
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">URL</label>
+                                <input type="url" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="https://..."
+                                       @bind="artifact.Url" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Resource (canonical)</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       placeholder="Canonical URL or reference"
+                                       @bind="artifact.Resource" />
+                            </div>
+                        </div>
+                        
+                        <div class="row g-2 mt-1">
+                            <div class="col-12">
+                                <label class="form-label small text-muted mb-1">Citation</label>
+                                <textarea class="form-control form-control-sm" 
+                                          rows="2"
+                                          placeholder="Citation text (Markdown supported)"
+                                          @bind="artifact.Citation"></textarea>
+                            </div>
+                        </div>
+                        
+                        @* CRMI Extensions *@
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">
+                                    <i class="bi bi-calendar-event me-1"></i>Publication Date
+                                </label>
+                                <input type="date" 
+                                       class="form-control form-control-sm" 
+                                       @bind="artifact.PublicationDate" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">
+                                    <i class="bi bi-flag me-1"></i>Publication Status
+                                </label>
+                                <select class="form-select form-select-sm" @bind="artifact.PublicationStatus">
+                                    <option value="">-- Select status --</option>
+                                    @foreach (var status in Enum.GetValues<PublicationStatus>())
+                                    {
+                                        <option value="@status">@status.ToString()</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<RelatedArtifactViewModel> RelatedArtifacts { get; set; } = new();
+    [Parameter] public EventCallback<List<RelatedArtifactViewModel>> RelatedArtifactsChanged { get; set; }
+
+    private void AddRelatedArtifact()
+    {
+        RelatedArtifacts.Add(new RelatedArtifactViewModel());
+        NotifyChange();
+    }
+
+    private void RemoveRelatedArtifact(int index)
+    {
+        if (index >= 0 && index < RelatedArtifacts.Count)
+        {
+            RelatedArtifacts.RemoveAt(index);
+            NotifyChange();
+        }
+    }
+
+    private void NotifyChange()
+    {
+        RelatedArtifactsChanged.InvokeAsync(RelatedArtifacts);
+    }
+}

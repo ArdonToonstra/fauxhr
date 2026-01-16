@@ -11,6 +11,10 @@ public class AppState
     public Practitioner? CurrentPractitioner { get; private set; }
     public PractitionerRole? CurrentPractitionerRole { get; private set; }
     
+    // Organization context for the currently logged-in user
+    public string? CurrentOrganizationName { get; private set; }
+    public string? CurrentOrganizationId { get; private set; }
+    
     // Reference Resolution Settings
     public bool EnableReferenceResolution { get; private set; } = true;
     public int ReferenceResolutionDepth { get; private set; } = 3;
@@ -67,6 +71,16 @@ public class AppState
         {
             CurrentPractitioner = practitioner;
             CurrentPractitionerRole = role;
+            NotifyStateChanged();
+        }
+    }
+    
+    public void SetOrganization(string? organizationName, string? organizationId = null)
+    {
+        if (CurrentOrganizationName != organizationName || CurrentOrganizationId != organizationId)
+        {
+            CurrentOrganizationName = organizationName;
+            CurrentOrganizationId = organizationId;
             NotifyStateChanged();
         }
     }

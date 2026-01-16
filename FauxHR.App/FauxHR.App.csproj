@@ -15,7 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FauxHR.Core\FauxHR.Core.csproj" />
     <ProjectReference Include="..\FauxHR.Modules.ExitStrategy\FauxHR.Modules.ExitStrategy.csproj" />
-    <ProjectReference Include="..\FauxHR.MockData\FauxHR.MockData.csproj" />
+    <ProjectReference Include="..\FauxHR.Modules.CrmiAuthoring\FauxHR.Modules.CrmiAuthoring.csproj" />
   </ItemGroup>
 
 </Project>

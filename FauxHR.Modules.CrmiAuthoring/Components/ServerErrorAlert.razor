@@ -1,0 +1,75 @@
+@using Hl7.Fhir.Model
+
+@* Displays server errors in a user-friendly alert box *@
+
+@if (Outcome != null || !string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
+            <div class="flex-grow-1">
+                <h5 class="alert-heading mb-2">
+                    @(Title ?? "Server Error")
+                </h5>
+                
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <p class="mb-2">@ErrorMessage</p>
+                }
+
+                @if (Outcome?.Issue != null && Outcome.Issue.Any())
+                {
+                    <ul class="mb-0 ps-3">
+                        @foreach (var issue in Outcome.Issue)
+                        {
+                            <li class="@GetIssueCssClass(issue.Severity)">
+                                @if (!string.IsNullOrEmpty(issue.Diagnostics))
+                                {
+                                    <span>@issue.Diagnostics</span>
+                                }
+                                else if (!string.IsNullOrEmpty(issue.Details?.Text))
+                                {
+                                    <span>@issue.Details.Text</span>
+                                }
+                                else
+                                {
+                                    <span>@issue.Code (@issue.Severity)</span>
+                                }
+                                
+                                @if (!string.IsNullOrEmpty(issue.Expression?.FirstOrDefault()))
+                                {
+                                    <br />
+                                    <small class="text-muted">Location: @issue.Expression.First()</small>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+        
+        @if (OnDismiss.HasDelegate)
+        {
+            <button type="button" class="btn-close" @onclick="OnDismiss" aria-label="Close"></button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public OperationOutcome? Outcome { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+
+    private static string GetIssueCssClass(OperationOutcome.IssueSeverity? severity)
+    {
+        return severity switch
+        {
+            OperationOutcome.IssueSeverity.Fatal => "text-danger fw-bold",
+            OperationOutcome.IssueSeverity.Error => "text-danger",
+            OperationOutcome.IssueSeverity.Warning => "text-warning",
+            OperationOutcome.IssueSeverity.Information => "text-info",
+            _ => ""
+        };
+    }
+}

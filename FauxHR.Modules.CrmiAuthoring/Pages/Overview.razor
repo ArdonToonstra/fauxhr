@@ -1,0 +1,464 @@
+@page "/crmi/overview"
+
+@inject CrmiArtifactService ArtifactService
+@inject TerminologyService TerminologyService
+@inject NavigationManager Navigation
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-grid-3x3-gap me-2"></i>
+                CRMI Authoring
+            </h2>
+            <p class="text-muted mb-0">Manage definitional FHIR resources</p>
+        </div>
+    </div>
+
+    @* Tab Navigation *@
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "activity" ? "active" : "")" 
+                    @onclick='() => SwitchTab("activity")'>
+                <i class="bi bi-activity me-1"></i>
+                ActivityDefinition
+                @if (activityDefinitions.Any())
+                {
+                    <span class="badge bg-secondary ms-1">@activityDefinitions.Count()</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "charge" ? "active" : "")" 
+                    @onclick='() => SwitchTab("charge")'>
+                <i class="bi bi-currency-euro me-1"></i>
+                ChargeItemDefinition
+                @if (chargeItemDefinitions.Any())
+                {
+                    <span class="badge bg-secondary ms-1">@chargeItemDefinitions.Count()</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "valueset" ? "active" : "")" 
+                    @onclick='() => SwitchTab("valueset")'>
+                <i class="bi bi-list-ul me-1"></i>
+                ValueSet
+                @if (valueSets.Any())
+                {
+                    <span class="badge bg-secondary ms-1">@valueSets.Count()</span>
+                }
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "codesystem" ? "active" : "")" 
+                    @onclick='() => SwitchTab("codesystem")'>
+                <i class="bi bi-code-square me-1"></i>
+                CodeSystem
+                @if (codeSystems.Any())
+                {
+                    <span class="badge bg-secondary ms-1">@codeSystems.Count()</span>
+                }
+            </button>
+        </li>
+    </ul>
+
+    @* Search and Filters *@
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               placeholder="Search by title or name..."
+                               @bind="searchText"
+                               @bind:event="oninput"
+                               @onkeyup="HandleSearchKeyUp" />
+                        @if (!string.IsNullOrEmpty(searchText))
+                        {
+                            <button class="btn btn-outline-secondary" @onclick="ClearSearch">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="statusFilter" @bind:after="RefreshCurrentTab">
+                        <option value="">All statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="retired">Retired</option>
+                    </select>
+                </div>
+                <div class="col-md-3 text-end">
+                    @if (activeTab == "activity")
+                    {
+                        <button class="btn btn-primary" @onclick="CreateNewActivityDefinition">
+                            <i class="bi bi-plus-lg me-1"></i>New ActivityDefinition
+                        </button>
+                    }
+                    else if (activeTab == "charge")
+                    {
+                        <button class="btn btn-primary" @onclick="CreateNewChargeItemDefinition">
+                            <i class="bi bi-plus-lg me-1"></i>New ChargeItemDefinition
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Loading State *@
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading resources...</p>
+        </div>
+    }
+    else
+    {
+        @* Tab Content *@
+        @if (activeTab == "activity")
+        {
+            @if (!activityDefinitions.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">No ActivityDefinitions found</p>
+                    <button class="btn btn-primary" @onclick="CreateNewActivityDefinition">
+                        <i class="bi bi-plus-lg me-1"></i>Create your first ActivityDefinition
+                    </button>
+                </div>
+            }
+            else
+            {
+                <ResourceTable Resources="@activityDefinitions" 
+                              OnEdit="@(id => EditActivityDefinition(id))"
+                              OnDelete="@(id => DeleteActivityDefinition(id))" />
+            }
+        }
+        else if (activeTab == "charge")
+        {
+            @if (!chargeItemDefinitions.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">No ChargeItemDefinitions found</p>
+                    <button class="btn btn-primary" @onclick="CreateNewChargeItemDefinition">
+                        <i class="bi bi-plus-lg me-1"></i>Create your first ChargeItemDefinition
+                    </button>
+                </div>
+            }
+            else
+            {
+                <ResourceTable Resources="@chargeItemDefinitions" 
+                              OnEdit="@(id => EditChargeItemDefinition(id))"
+                              OnDelete="@(id => DeleteChargeItemDefinition(id))" />
+            }
+        }
+        else if (activeTab == "valueset")
+        {
+            @if (!valueSets.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">No ValueSets found</p>
+                </div>
+            }
+            else
+            {
+                <TerminologyTable Resources="@valueSets" 
+                                  OnView="@(id => ViewValueSet(id))" />
+            }
+        }
+        else if (activeTab == "codesystem")
+        {
+            @if (!codeSystems.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">No CodeSystems found</p>
+                </div>
+            }
+            else
+            {
+                <TerminologyTable Resources="@codeSystems" 
+                                  OnView="@(id => ViewCodeSystem(id))" />
+            }
+        }
+    }
+</div>
+
+@* Delete Confirmation Modal *@
+@if (showDeleteConfirm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                        Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this resource?</p>
+                    <p class="text-muted small">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeTab = "activity";
+    private string searchText = "";
+    private string statusFilter = "";
+    private bool isLoading = true;
+
+    private List<ResourceSummary> activityDefinitions = new();
+    private List<ResourceSummary> chargeItemDefinitions = new();
+    private List<ResourceSummary> valueSets = new();
+    private List<ResourceSummary> codeSystems = new();
+
+    private bool showDeleteConfirm;
+    private string? deleteResourceType;
+    private string? deleteResourceId;
+
+    private System.Timers.Timer? searchDebounceTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAllResources();
+    }
+
+    private async Task LoadAllResources()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var status = string.IsNullOrEmpty(statusFilter) ? (Hl7.Fhir.Model.PublicationStatus?)null 
+            : Enum.Parse<Hl7.Fhir.Model.PublicationStatus>(statusFilter, true);
+
+        var tasks = new List<Task>
+        {
+            LoadActivityDefinitions(status),
+            LoadChargeItemDefinitions(status),
+            LoadValueSets(status),
+            LoadCodeSystems(status)
+        };
+
+        await Task.WhenAll(tasks);
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadActivityDefinitions(Hl7.Fhir.Model.PublicationStatus? status)
+    {
+        var bundle = await ArtifactService.SearchActivityDefinitionsAsync(searchText, status);
+        activityDefinitions = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.ActivityDefinition)
+            .Where(r => r != null)
+            .Select(r => new ResourceSummary
+            {
+                Id = r!.Id,
+                Title = r.Title ?? r.Name ?? "(untitled)",
+                Url = r.Url,
+                Version = r.Version,
+                Status = r.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+                Date = r.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime
+            })
+            .ToList() ?? new();
+    }
+
+    private async Task LoadChargeItemDefinitions(Hl7.Fhir.Model.PublicationStatus? status)
+    {
+        var bundle = await ArtifactService.SearchChargeItemDefinitionsAsync(searchText, status);
+        chargeItemDefinitions = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.ChargeItemDefinition)
+            .Where(r => r != null)
+            .Select(r => new ResourceSummary
+            {
+                Id = r!.Id,
+                Title = r.Title ?? "(untitled)",
+                Url = r.Url,
+                Version = r.Version,
+                Status = r.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+                Date = r.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime
+            })
+            .ToList() ?? new();
+    }
+
+    private async Task LoadValueSets(Hl7.Fhir.Model.PublicationStatus? status)
+    {
+        var bundle = await TerminologyService.SearchValueSetsAsync(searchText, status);
+        valueSets = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.ValueSet)
+            .Where(r => r != null)
+            .Select(r => new ResourceSummary
+            {
+                Id = r!.Id,
+                Title = r.Title ?? r.Name ?? "(untitled)",
+                Url = r.Url,
+                Version = r.Version,
+                Status = r.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+                Date = r.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime
+            })
+            .ToList() ?? new();
+    }
+
+    private async Task LoadCodeSystems(Hl7.Fhir.Model.PublicationStatus? status)
+    {
+        var bundle = await TerminologyService.SearchCodeSystemsAsync(searchText, status);
+        codeSystems = bundle.Entry?
+            .Select(e => e.Resource as Hl7.Fhir.Model.CodeSystem)
+            .Where(r => r != null)
+            .Select(r => new ResourceSummary
+            {
+                Id = r!.Id,
+                Title = r.Title ?? r.Name ?? "(untitled)",
+                Url = r.Url,
+                Version = r.Version,
+                Status = r.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown,
+                Date = r.DateElement?.ToDateTimeOffset(TimeSpan.Zero).DateTime
+            })
+            .ToList() ?? new();
+    }
+
+    private void SwitchTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private async Task RefreshCurrentTab()
+    {
+        await LoadAllResources();
+    }
+
+    private void HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        // Debounce search
+        searchDebounceTimer?.Stop();
+        searchDebounceTimer?.Dispose();
+        
+        searchDebounceTimer = new System.Timers.Timer(300);
+        searchDebounceTimer.Elapsed += async (s, args) =>
+        {
+            searchDebounceTimer?.Stop();
+            await InvokeAsync(async () =>
+            {
+                await LoadAllResources();
+            });
+        };
+        searchDebounceTimer.Start();
+    }
+
+    private async Task ClearSearch()
+    {
+        searchText = "";
+        await LoadAllResources();
+    }
+
+    private void CreateNewActivityDefinition()
+    {
+        Navigation.NavigateTo("/crmi/activity-definition/new");
+    }
+
+    private void CreateNewChargeItemDefinition()
+    {
+        Navigation.NavigateTo("/crmi/charge-item-definition/new");
+    }
+
+    private void EditActivityDefinition(string id)
+    {
+        Navigation.NavigateTo($"/crmi/activity-definition/{id}");
+    }
+
+    private void EditChargeItemDefinition(string id)
+    {
+        Navigation.NavigateTo($"/crmi/charge-item-definition/{id}");
+    }
+
+    private void ViewValueSet(string id)
+    {
+        Navigation.NavigateTo($"/crmi/terminology/valueset/{id}");
+    }
+
+    private void ViewCodeSystem(string id)
+    {
+        Navigation.NavigateTo($"/crmi/terminology/codesystem/{id}");
+    }
+
+    private void DeleteActivityDefinition(string id)
+    {
+        deleteResourceType = "ActivityDefinition";
+        deleteResourceId = id;
+        showDeleteConfirm = true;
+    }
+
+    private void DeleteChargeItemDefinition(string id)
+    {
+        deleteResourceType = "ChargeItemDefinition";
+        deleteResourceId = id;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        deleteResourceType = null;
+        deleteResourceId = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (deleteResourceType != null && deleteResourceId != null)
+        {
+            if (deleteResourceType == "ActivityDefinition")
+            {
+                await ArtifactService.DeleteActivityDefinitionAsync(deleteResourceId);
+            }
+            else if (deleteResourceType == "ChargeItemDefinition")
+            {
+                await ArtifactService.DeleteChargeItemDefinitionAsync(deleteResourceId);
+            }
+            
+            showDeleteConfirm = false;
+            deleteResourceType = null;
+            deleteResourceId = null;
+            
+            await LoadAllResources();
+        }
+    }
+
+    public void Dispose()
+    {
+        searchDebounceTimer?.Dispose();
+    }
+
+    // Helper class for resource summaries
+    public class ResourceSummary
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? Url { get; set; }
+        public string? Version { get; set; }
+        public Hl7.Fhir.Model.PublicationStatus Status { get; set; }
+        public DateTime? Date { get; set; }
+    }
+}

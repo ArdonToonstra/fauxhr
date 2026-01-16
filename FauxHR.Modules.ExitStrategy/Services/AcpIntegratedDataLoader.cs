@@ -25,7 +25,7 @@ public class AcpIntegratedData
 public class AcpIntegratedDataLoader
 {
     private readonly ILocalStorageService _localStorage;
-    private readonly FhirJsonDeserializer _parser = new();
+    private readonly FhirJsonDeserializer _deserializer = new();
     
     private readonly string[] _allowedGoalCodes = new[] { "385987000", "1351964001", "713148004" };
     private readonly string[] _allowedObservationCodes = new[] { "153851000146100", "395091006", "340171000146104", "247751003" };
@@ -111,7 +111,7 @@ public class AcpIntegratedDataLoader
             {
                 try 
                 { 
-                    return _parser.Deserialize<Patient>(json); 
+                    return _deserializer.Deserialize<Patient>(json); 
                 } 
                 catch { /* Fall through to return current patient */ }
             }
@@ -127,7 +127,7 @@ public class AcpIntegratedDataLoader
         {
             try 
             {
-                var resource = _parser.Deserialize<T>(json);
+                var resource = _deserializer.Deserialize<T>(json);
                 if (resource != null) 
                     onSuccess(resource);
             } 

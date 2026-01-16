@@ -255,4 +255,85 @@ public class FhirService : IFhirService
     {
         return await _client.TransactionAsync(bundle) ?? new Bundle();
     }
+
+    public async Task<FhirOperationResult<T>> CreateAsync<T>(T resource) where T : Resource
+    {
+        try
+        {
+            var result = await _client.CreateAsync(resource);
+            return result != null 
+                ? FhirOperationResult<T>.Success(result) 
+                : FhirOperationResult<T>.Failure(null, "Server returned null response");
+        }
+        catch (FhirOperationException ex)
+        {
+            return FhirOperationResult<T>.Failure(ex.Outcome, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return FhirOperationResult<T>.Failure(null, ex.Message);
+        }
+    }
+
+    public async Task<FhirOperationResult<T>> UpdateAsync<T>(T resource) where T : Resource
+    {
+        try
+        {
+            var result = await _client.UpdateAsync(resource);
+            return result != null 
+                ? FhirOperationResult<T>.Success(result) 
+                : FhirOperationResult<T>.Failure(null, "Server returned null response");
+        }
+        catch (FhirOperationException ex)
+        {
+            return FhirOperationResult<T>.Failure(ex.Outcome, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return FhirOperationResult<T>.Failure(null, ex.Message);
+        }
+    }
+
+    public async Task<FhirOperationResult<Resource>> DeleteAsync(string resourceType, string id)
+    {
+        try
+        {
+            await _client.DeleteAsync($"{resourceType}/{id}");
+            // Delete returns void on success, so we create a minimal success indicator
+            return FhirOperationResult<Resource>.Success(new OperationOutcome
+            {
+                Issue = new List<OperationOutcome.IssueComponent>
+                {
+                    new() { Severity = OperationOutcome.IssueSeverity.Information, Code = OperationOutcome.IssueType.Deleted, Diagnostics = "Resource deleted successfully" }
+                }
+            });
+        }
+        catch (FhirOperationException ex)
+        {
+            return FhirOperationResult<Resource>.Failure(ex.Outcome, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return FhirOperationResult<Resource>.Failure(null, ex.Message);
+        }
+    }
+
+    public async Task<FhirOperationResult<T>> ReadAsync<T>(string id) where T : Resource, new()
+    {
+        try
+        {
+            var result = await _client.ReadAsync<T>($"{typeof(T).Name}/{id}");
+            return result != null 
+                ? FhirOperationResult<T>.Success(result) 
+                : FhirOperationResult<T>.Failure(null, "Resource not found");
+        }
+        catch (FhirOperationException ex)
+        {
+            return FhirOperationResult<T>.Failure(ex.Outcome, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return FhirOperationResult<T>.Failure(null, ex.Message);
+        }
+    }
 }

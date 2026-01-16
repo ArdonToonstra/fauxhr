@@ -1,0 +1,92 @@
+@using Hl7.Fhir.Model
+@using static FauxHR.Modules.CrmiAuthoring.Pages.Overview
+
+@* Reusable table for displaying definitional resources *@
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Title</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Last Updated</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var resource in Resources)
+                {
+                    <tr>
+                        <td>
+                            <div>
+                                <span class="fw-medium">@resource.Title</span>
+                                @if (!string.IsNullOrEmpty(resource.Url))
+                                {
+                                    <br />
+                                    <small class="text-muted text-break">@resource.Url</small>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(resource.Version))
+                            {
+                                <span class="badge bg-light text-dark border">v@(resource.Version)</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="badge @GetStatusBadgeClass(resource.Status)">
+                                @resource.Status.ToString()
+                            </span>
+                        </td>
+                        <td>
+                            @if (resource.Date.HasValue)
+                            {
+                                <span title="@resource.Date.Value.ToString("yyyy-MM-dd HH:mm")">
+                                    @resource.Date.Value.ToString("dd MMM yyyy")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" 
+                                        @onclick="() => OnEdit.InvokeAsync(resource.Id)"
+                                        title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" 
+                                        @onclick="() => OnDelete.InvokeAsync(resource.Id)"
+                                        title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IEnumerable<ResourceSummary> Resources { get; set; } = Enumerable.Empty<ResourceSummary>();
+    [Parameter] public EventCallback<string> OnEdit { get; set; }
+    [Parameter] public EventCallback<string> OnDelete { get; set; }
+
+    private static string GetStatusBadgeClass(PublicationStatus status) => status switch
+    {
+        PublicationStatus.Draft => "bg-warning text-dark",
+        PublicationStatus.Active => "bg-success",
+        PublicationStatus.Retired => "bg-secondary",
+        _ => "bg-light text-dark border"
+    };
+}

@@ -1,0 +1,50 @@
+@* Simple editor for a list of strings *@
+
+<div>
+    @for (int i = 0; i < Items.Count; i++)
+    {
+        var index = i;
+        <div class="input-group mb-2">
+            <input type="text" class="form-control form-control-sm" 
+                   placeholder="@Placeholder"
+                   value="@Items[index]"
+                   @onchange="e => UpdateItem(index, e.Value?.ToString())" />
+            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveItem(index)">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    }
+    <button class="btn btn-sm btn-outline-secondary" @onclick="AddItem">
+        <i class="bi bi-plus-lg me-1"></i>Add
+    </button>
+</div>
+
+@code {
+    [Parameter] public List<string> Items { get; set; } = new();
+    [Parameter] public EventCallback<List<string>> ItemsChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Enter value";
+
+    private void AddItem()
+    {
+        Items.Add("");
+        ItemsChanged.InvokeAsync(Items);
+    }
+
+    private void RemoveItem(int index)
+    {
+        if (index >= 0 && index < Items.Count)
+        {
+            Items.RemoveAt(index);
+            ItemsChanged.InvokeAsync(Items);
+        }
+    }
+
+    private void UpdateItem(int index, string? value)
+    {
+        if (index >= 0 && index < Items.Count)
+        {
+            Items[index] = value ?? "";
+            ItemsChanged.InvokeAsync(Items);
+        }
+    }
+}

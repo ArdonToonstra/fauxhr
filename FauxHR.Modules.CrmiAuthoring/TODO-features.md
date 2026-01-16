@@ -1,0 +1,3 @@
+- add templates for default values for an organziation, like publisher, contact details, etc.
+- add better terminology support. Perhaps load a profile to extraxt the ValueSet bindings and load these in the dropdowns?
+-
