@@ -30,6 +30,7 @@ builder.Services.AddSingleton(new FauxHR.Modules.CrmiAuthoring.Services.Canonica
 });
 builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.CrmiArtifactService>();
 builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.TerminologyService>();
+builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.ValueSetBindingService>();
 
 var host = builder.Build();
 

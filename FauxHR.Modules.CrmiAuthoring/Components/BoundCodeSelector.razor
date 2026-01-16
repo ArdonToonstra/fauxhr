@@ -1,0 +1,226 @@
+@using FauxHR.Modules.CrmiAuthoring.Services
+@inject ValueSetBindingService BindingService
+@inject NavigationManager Navigation
+
+<div class="bound-code-selector">
+    @if (_isLoading)
+    {
+        <div class="d-flex align-items-center gap-2">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="text-muted">Loading codes...</span>
+        </div>
+    }
+    else if (_hasBinding && _boundCodes.Any())
+    {
+        <!-- Dropdown mode with binding -->
+        <div class="input-group">
+            <select class="form-select" value="@_selectedCodeKey" @onchange="OnCodeSelected">
+                <option value="">-- Select a code --</option>
+                @foreach (var boundCode in _boundCodes)
+                {
+                    <option value="@GetCodeKey(boundCode)">@(boundCode.FullDisplay)</option>
+                }
+            </select>
+            @if (_useManualEntry)
+            {
+                <button class="btn btn-outline-secondary" type="button" @onclick="SwitchToDropdown" title="Use dropdown">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-outline-secondary" type="button" @onclick="SwitchToManualEntry" title="Manual entry">
+                    <i class="bi bi-pencil"></i>
+                </button>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(System))
+        {
+            <small class="text-muted">System: @System</small>
+        }
+    }
+    else if (_hasBinding && !_boundCodes.Any())
+    {
+        <!-- Binding exists but no codes loaded -->
+        <div class="alert alert-warning py-2 mb-0">
+            <small>
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Binding configured but no codes found. 
+                <a href="crmi/settings" class="alert-link">Check settings</a> or use manual entry below.
+            </small>
+        </div>
+        @ManualEntryFields
+    }
+    else
+    {
+        <!-- Manual entry mode (no binding) -->
+        @ManualEntryFields
+        <div class="mt-1">
+            <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                <a href="crmi/settings" class="text-decoration-none">Configure a ValueSet binding</a> for dropdown selection.
+            </small>
+        </div>
+    }
+
+    @if (_useManualEntry && _hasBinding && _boundCodes.Any())
+    {
+        <div class="mt-2 p-2 border rounded bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="fw-bold">Manual Entry</small>
+                <button type="button" class="btn btn-sm btn-link p-0" @onclick="SwitchToDropdown">
+                    <i class="bi bi-arrow-left me-1"></i>Back to dropdown
+                </button>
+            </div>
+            @ManualEntryFields
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string ElementPath { get; set; } = "";
+    [Parameter] public string? System { get; set; }
+    [Parameter] public string? Code { get; set; }
+    [Parameter] public string? Display { get; set; }
+    [Parameter] public EventCallback<string?> SystemChanged { get; set; }
+    [Parameter] public EventCallback<string?> CodeChanged { get; set; }
+    [Parameter] public EventCallback<string?> DisplayChanged { get; set; }
+
+    private List<BoundCode> _boundCodes = new();
+    private bool _hasBinding = false;
+    private bool _isLoading = true;
+    private bool _useManualEntry = false;
+    private string _selectedCodeKey = "";
+
+    private RenderFragment ManualEntryFields => __builder =>
+    {
+        <div class="row g-2">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">System</span>
+                    <input type="text" class="form-control" placeholder="http://..."
+                           value="@System" @onchange="e => OnSystemChanged(e.Value?.ToString())" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">Code</span>
+                    <input type="text" class="form-control"
+                           value="@Code" @onchange="e => OnCodeChanged(e.Value?.ToString())" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">Display</span>
+                    <input type="text" class="form-control"
+                           value="@Display" @onchange="e => OnDisplayChanged(e.Value?.ToString())" />
+                </div>
+            </div>
+        </div>
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BindingService.InitializeAsync();
+        await LoadBinding();
+    }
+
+    private async Task LoadBinding()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var binding = BindingService.GetBinding(ElementPath);
+            _hasBinding = binding != null;
+
+            if (_hasBinding)
+            {
+                _boundCodes = await BindingService.GetBoundCodesAsync(ElementPath);
+                
+                // Set selected value if current code matches
+                if (!string.IsNullOrEmpty(Code))
+                {
+                    var matchingCode = _boundCodes.FirstOrDefault(c => 
+                        c.Code == Code && (string.IsNullOrEmpty(System) || c.System == System));
+                    if (matchingCode != null)
+                    {
+                        _selectedCodeKey = GetCodeKey(matchingCode);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            _hasBinding = false;
+            _boundCodes = new();
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private string GetCodeKey(BoundCode code) => $"{code.System}|{code.Code}";
+
+    private async Task OnCodeSelected(ChangeEventArgs e)
+    {
+        var key = e.Value?.ToString();
+        _selectedCodeKey = key ?? "";
+
+        if (string.IsNullOrEmpty(key))
+        {
+            await SetValues(null, null, null);
+            return;
+        }
+
+        var parts = key.Split('|', 2);
+        var selectedCode = _boundCodes.FirstOrDefault(c => 
+            c.System == parts[0] && c.Code == (parts.Length > 1 ? parts[1] : ""));
+
+        if (selectedCode != null)
+        {
+            await SetValues(selectedCode.System, selectedCode.Code, selectedCode.Display);
+        }
+    }
+
+    private async Task SetValues(string? system, string? code, string? display)
+    {
+        System = system;
+        Code = code;
+        Display = display;
+        await SystemChanged.InvokeAsync(system);
+        await CodeChanged.InvokeAsync(code);
+        await DisplayChanged.InvokeAsync(display);
+    }
+
+    private async Task OnSystemChanged(string? value)
+    {
+        System = value;
+        await SystemChanged.InvokeAsync(value);
+    }
+
+    private async Task OnCodeChanged(string? value)
+    {
+        Code = value;
+        await CodeChanged.InvokeAsync(value);
+    }
+
+    private async Task OnDisplayChanged(string? value)
+    {
+        Display = value;
+        await DisplayChanged.InvokeAsync(value);
+    }
+
+    private void SwitchToManualEntry()
+    {
+        _useManualEntry = true;
+    }
+
+    private void SwitchToDropdown()
+    {
+        _useManualEntry = false;
+    }
+}

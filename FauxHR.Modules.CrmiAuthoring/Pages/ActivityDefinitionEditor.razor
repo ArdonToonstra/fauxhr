@@ -536,27 +536,17 @@
             @* Row 3: Code *@
             <div class="col-12">
                 <label class="form-label fw-bold">Code</label>
-                <div class="row g-2">
-                    <div class="col-md-4">
-                        <input type="text" class="form-control" placeholder="Code system"
-                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.System ?? "")"
-                               @onchange="e => UpdateCodeSystem(e.Value?.ToString())" />
-                    </div>
-                    <div class="col-md-3">
-                        <input type="text" class="form-control" placeholder="Code"
-                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Code ?? "")"
-                               @onchange="e => UpdateCode(e.Value?.ToString())" />
-                    </div>
-                    <div class="col-md-5">
-                        <input type="text" class="form-control" placeholder="Display"
-                               value="@(viewModel.Code?.Codings.FirstOrDefault()?.Display ?? "")"
-                               @onchange="e => UpdateCodeDisplay(e.Value?.ToString())" />
-                    </div>
-                    <div class="col-12">
-                        <input type="text" class="form-control" placeholder="Text (free text description)"
-                               value="@(viewModel.Code?.Text ?? "")"
-                               @onchange="e => UpdateCodeText(e.Value?.ToString())" />
-                    </div>
+                <BoundCodeSelector ElementPath="ActivityDefinition.code"
+                                   System="@(viewModel.Code?.Codings.FirstOrDefault()?.System)"
+                                   Code="@(viewModel.Code?.Codings.FirstOrDefault()?.Code)"
+                                   Display="@(viewModel.Code?.Codings.FirstOrDefault()?.Display)"
+                                   SystemChanged="s => UpdateCodeSystem(s)"
+                                   CodeChanged="c => UpdateCode(c)"
+                                   DisplayChanged="d => UpdateCodeDisplay(d)" />
+                <div class="mt-2">
+                    <input type="text" class="form-control" placeholder="Text (free text description)"
+                           value="@(viewModel.Code?.Text ?? "")"
+                           @onchange="e => UpdateCodeText(e.Value?.ToString())" />
                 </div>
                 <small class="text-muted">Detailed description of the activity type</small>
             </div>

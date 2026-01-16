@@ -41,5 +41,11 @@ public class CrmiAuthoringModule : IIGModule
             Url = "crmi/terminology",
             IconClass = "bi bi-translate"
         };
+        yield return new NavigationItem
+        {
+            Title = "Settings",
+            Url = "crmi/settings",
+            IconClass = "bi bi-gear"
+        };
     }
 }
