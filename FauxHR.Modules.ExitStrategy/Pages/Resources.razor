@@ -93,21 +93,54 @@
                     <span class="badge bg-primary">@group.Value.Count</span>
                     @group.Key
                 </h3>
-                <div class="row g-3">
-                    @foreach (var item in group.Value.OrderByDescending(r => r.RetrievalDate))
-                    {
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 shadow-sm border-0 @(item.IsError ? "border-danger" : "")">
-                                <div class="card-body">
-                                    <span class="badge @(item.IsError ? "bg-danger" : "bg-secondary") mb-2">@item.TypeName</span>
-                                    <h6 class="card-title">@item.ResourceId</h6>
-                                    <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="() => ViewSource(item)">
-                                        <i class="bi bi-code-slash me-1"></i> View Source
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    }
+                <div class="card shadow-sm border-0 overflow-hidden">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-secondary small text-uppercase">
+                                <tr>
+                                    <th class="ps-4 fw-medium border-0" style="width: 15%">Type</th>
+                                    <th class="fw-medium border-0" style="width: 15%">Date</th>
+                                    <th class="fw-medium border-0" style="width: 30%">Details</th>
+                                    <th class="fw-medium border-0" style="width: 15%">ID</th>
+                                    <th class="fw-medium border-0" style="width: 15%">Source</th>
+                                    <th class="fw-medium border-0 text-end pe-4" style="width: 10%">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in group.Value.OrderByDescending(r => r.RetrievalDate))
+                                {
+                                    <tr class="@(item.IsError ? "table-danger" : "")">
+                                        <td class="ps-4">
+                                            <span class="badge @(item.IsError ? "bg-danger" : "bg-secondary-subtle text-secondary border border-secondary-subtle") rounded-pill">
+                                                @item.TypeName
+                                            </span>
+                                        </td>
+                                        <td class="small text-muted">@GetResourceDate(item)</td>
+                                        <td>
+                                            <div class="text-truncate small" style="max-width: 350px;" title="@GetResourceSummary(item)">
+                                                @GetResourceSummary(item)
+                                            </div>
+                                        </td>
+                                        <td class="small text-muted font-monospace">
+                                            <span class="d-inline-block text-truncate" style="max-width: 120px;" title="@item.ResourceId">
+                                                @item.ResourceId
+                                            </span>
+                                        </td>
+                                        <td class="small text-muted">
+                                            <span class="d-inline-block text-truncate" style="max-width: 150px;" title="@item.Source">
+                                                @GetShortSource(item.Source)
+                                            </span>
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <a role="button" class="text-primary text-decoration-none small fw-medium" @onclick="() => ViewSource(item)">
+                                                View Source
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <hr class="my-4 text-muted opacity-25" />
             </div>
@@ -196,6 +229,194 @@
     private string GetSourceKey(SourceSummary source) => GetSourceKey(source.Source, source.Date);
     
     private string GetSourceKey(string source, DateTime date) => $"{source}|{date:yyyyMMdd}";
+
+    private string GetShortSource(string source)
+    {
+        if (string.IsNullOrEmpty(source) || source == "Unknown") return "-";
+        try
+        {
+            var uri = new Uri(source);
+            return uri.Host;
+        }
+        catch
+        {
+            // If it's not a valid URI, just return truncated version
+            return source.Length > 30 ? source[..27] + "..." : source;
+        }
+    }
+
+    private string GetResourceDate(StoredResource item)
+    {
+        if (string.IsNullOrWhiteSpace(item.JsonSource)) return "-";
+        
+        try
+        {
+            using var doc = JsonDocument.Parse(item.JsonSource);
+            var root = doc.RootElement;
+            
+            // Try common date fields based on resource type
+            switch (item.TypeName)
+            {
+                case "QuestionnaireResponse":
+                    if (root.TryGetProperty("authored", out var authored))
+                        return FormatDate(authored.GetString());
+                    break;
+                case "Procedure":
+                    if (root.TryGetProperty("performedDateTime", out var performed))
+                        return FormatDate(performed.GetString());
+                    if (root.TryGetProperty("performedPeriod", out var period) && 
+                        period.TryGetProperty("start", out var start))
+                        return FormatDate(start.GetString());
+                    break;
+                case "Encounter":
+                    if (root.TryGetProperty("period", out var encPeriod) && 
+                        encPeriod.TryGetProperty("start", out var encStart))
+                        return FormatDate(encStart.GetString());
+                    break;
+                case "Observation":
+                    if (root.TryGetProperty("effectiveDateTime", out var effective))
+                        return FormatDate(effective.GetString());
+                    break;
+                case "Consent":
+                    if (root.TryGetProperty("dateTime", out var dateTime))
+                        return FormatDate(dateTime.GetString());
+                    break;
+                case "Condition":
+                    if (root.TryGetProperty("recordedDate", out var recorded))
+                        return FormatDate(recorded.GetString());
+                    if (root.TryGetProperty("onsetDateTime", out var onset))
+                        return FormatDate(onset.GetString());
+                    break;
+                case "DocumentReference":
+                    if (root.TryGetProperty("date", out var docDate))
+                        return FormatDate(docDate.GetString());
+                    break;
+            }
+            
+            // Fallback to meta.lastUpdated
+            if (root.TryGetProperty("meta", out var meta) && 
+                meta.TryGetProperty("lastUpdated", out var lastUpdated))
+                return FormatDate(lastUpdated.GetString());
+        }
+        catch { }
+        
+        return item.RetrievalDate.ToString("yyyy-MM-dd");
+    }
+
+    private string FormatDate(string? dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr)) return "-";
+        if (DateTime.TryParse(dateStr, out var dt))
+            return dt.ToString("yyyy-MM-dd");
+        // Return first 10 chars if it looks like a date
+        return dateStr.Length >= 10 ? dateStr[..10] : dateStr;
+    }
+
+    private string GetResourceSummary(StoredResource item)
+    {
+        if (string.IsNullOrWhiteSpace(item.JsonSource)) return "";
+        
+        try
+        {
+            using var doc = JsonDocument.Parse(item.JsonSource);
+            var root = doc.RootElement;
+            
+            switch (item.TypeName)
+            {
+                case "QuestionnaireResponse":
+                    if (root.TryGetProperty("questionnaire", out var questionnaire))
+                        return questionnaire.GetString() ?? "";
+                    break;
+                case "Procedure":
+                    return GetCodeDisplay(root, "code");
+                case "Encounter":
+                    if (root.TryGetProperty("type", out var types) && types.GetArrayLength() > 0)
+                        return GetCodeableConceptDisplay(types[0]);
+                    break;
+                case "Observation":
+                    return GetCodeDisplay(root, "code");
+                case "Consent":
+                    if (root.TryGetProperty("status", out var status))
+                        return $"Status: {status.GetString()}";
+                    break;
+                case "Condition":
+                    return GetCodeDisplay(root, "code");
+                case "DocumentReference":
+                    if (root.TryGetProperty("description", out var desc))
+                        return desc.GetString() ?? "";
+                    return GetCodeDisplay(root, "type");
+                case "Patient":
+                    return GetPatientName(root);
+                case "Practitioner":
+                    return GetPractitionerName(root);
+                case "Organization":
+                    if (root.TryGetProperty("name", out var orgName))
+                        return orgName.GetString() ?? "";
+                    break;
+                case "OperationOutcome":
+                    return GetOperationOutcomeSummary(root);
+            }
+        }
+        catch { }
+        
+        return "";
+    }
+
+    private string GetCodeDisplay(JsonElement root, string propertyName)
+    {
+        if (root.TryGetProperty(propertyName, out var code))
+            return GetCodeableConceptDisplay(code);
+        return "";
+    }
+
+    private string GetCodeableConceptDisplay(JsonElement codeableConcept)
+    {
+        if (codeableConcept.TryGetProperty("text", out var text))
+            return text.GetString() ?? "";
+        if (codeableConcept.TryGetProperty("coding", out var coding) && coding.GetArrayLength() > 0)
+        {
+            var firstCoding = coding[0];
+            if (firstCoding.TryGetProperty("display", out var display))
+                return display.GetString() ?? "";
+            if (firstCoding.TryGetProperty("code", out var codeVal))
+                return codeVal.GetString() ?? "";
+        }
+        return "";
+    }
+
+    private string GetPatientName(JsonElement root)
+    {
+        if (root.TryGetProperty("name", out var names) && names.GetArrayLength() > 0)
+        {
+            var name = names[0];
+            var parts = new List<string>();
+            if (name.TryGetProperty("given", out var given))
+                foreach (var g in given.EnumerateArray())
+                    parts.Add(g.GetString() ?? "");
+            if (name.TryGetProperty("family", out var family))
+                parts.Add(family.GetString() ?? "");
+            return string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)));
+        }
+        return "";
+    }
+
+    private string GetPractitionerName(JsonElement root)
+    {
+        return GetPatientName(root); // Same structure
+    }
+
+    private string GetOperationOutcomeSummary(JsonElement root)
+    {
+        if (root.TryGetProperty("issue", out var issues) && issues.GetArrayLength() > 0)
+        {
+            var issue = issues[0];
+            if (issue.TryGetProperty("diagnostics", out var diag))
+                return diag.GetString() ?? "Error";
+            if (issue.TryGetProperty("details", out var details))
+                return GetCodeableConceptDisplay(details);
+        }
+        return "Operation Outcome";
+    }
 
     private async Task LoadResourcesFromStorage()
     {
