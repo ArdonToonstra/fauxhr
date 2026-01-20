@@ -409,14 +409,7 @@
     private void ViewSource(Hl7.Fhir.Model.Resource resource)
     {
         var serializer = new FhirJsonSerializer();
-        var rawJson = serializer.SerializeToString(resource);
-        try
-        {
-            var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
-            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-            selectedResourceJson = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
-        }
-        catch { selectedResourceJson = rawJson; }
+        selectedResourceJson = serializer.SerializeToString(resource);
         showSourceModal = true;
     }
 

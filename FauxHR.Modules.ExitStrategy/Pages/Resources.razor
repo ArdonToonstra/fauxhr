@@ -3,7 +3,6 @@
 @using FauxHR.Modules.ExitStrategy.Services
 @using Hl7.Fhir.Model
 @using Hl7.Fhir.Serialization
-@using System.Text.Json
 @using Task = System.Threading.Tasks.Task
 @using Blazored.LocalStorage
 @inject AppState AppState
@@ -247,59 +246,39 @@
 
     private string GetResourceDate(StoredResource item)
     {
-        if (string.IsNullOrWhiteSpace(item.JsonSource)) return "-";
-        
-        try
+        var resource = item.ParsedResource;
+        if (resource == null) return item.RetrievalDate.ToString("yyyy-MM-dd");
+
+        string? dateStr = resource switch
         {
-            using var doc = JsonDocument.Parse(item.JsonSource);
-            var root = doc.RootElement;
-            
-            // Try common date fields based on resource type
-            switch (item.TypeName)
+            QuestionnaireResponse qr => qr.Authored,
+            Procedure proc => proc.Performed switch
             {
-                case "QuestionnaireResponse":
-                    if (root.TryGetProperty("authored", out var authored))
-                        return FormatDate(authored.GetString());
-                    break;
-                case "Procedure":
-                    if (root.TryGetProperty("performedDateTime", out var performed))
-                        return FormatDate(performed.GetString());
-                    if (root.TryGetProperty("performedPeriod", out var period) && 
-                        period.TryGetProperty("start", out var start))
-                        return FormatDate(start.GetString());
-                    break;
-                case "Encounter":
-                    if (root.TryGetProperty("period", out var encPeriod) && 
-                        encPeriod.TryGetProperty("start", out var encStart))
-                        return FormatDate(encStart.GetString());
-                    break;
-                case "Observation":
-                    if (root.TryGetProperty("effectiveDateTime", out var effective))
-                        return FormatDate(effective.GetString());
-                    break;
-                case "Consent":
-                    if (root.TryGetProperty("dateTime", out var dateTime))
-                        return FormatDate(dateTime.GetString());
-                    break;
-                case "Condition":
-                    if (root.TryGetProperty("recordedDate", out var recorded))
-                        return FormatDate(recorded.GetString());
-                    if (root.TryGetProperty("onsetDateTime", out var onset))
-                        return FormatDate(onset.GetString());
-                    break;
-                case "DocumentReference":
-                    if (root.TryGetProperty("date", out var docDate))
-                        return FormatDate(docDate.GetString());
-                    break;
-            }
-            
-            // Fallback to meta.lastUpdated
-            if (root.TryGetProperty("meta", out var meta) && 
-                meta.TryGetProperty("lastUpdated", out var lastUpdated))
-                return FormatDate(lastUpdated.GetString());
-        }
-        catch { }
-        
+                FhirDateTime dt => dt.Value,
+                Period p => p.Start,
+                _ => null
+            },
+            Encounter enc => enc.Period?.Start,
+            Observation obs => obs.Effective switch
+            {
+                FhirDateTime dt => dt.Value,
+                Period p => p.Start,
+                _ => null
+            },
+            Consent con => con.DateTime,
+            Condition cond => cond.RecordedDate ?? (cond.Onset as FhirDateTime)?.Value,
+            DocumentReference doc => doc.Date?.ToString("yyyy-MM-dd"),
+            Goal goal => goal.StatusDate,
+            _ => null
+        };
+
+        if (!string.IsNullOrEmpty(dateStr))
+            return FormatDate(dateStr);
+
+        // Fallback to meta.lastUpdated
+        if (resource.Meta?.LastUpdated != null)
+            return resource.Meta.LastUpdated.Value.ToString("yyyy-MM-dd");
+
         return item.RetrievalDate.ToString("yyyy-MM-dd");
     }
 
@@ -308,114 +287,51 @@
         if (string.IsNullOrEmpty(dateStr)) return "-";
         if (DateTime.TryParse(dateStr, out var dt))
             return dt.ToString("yyyy-MM-dd");
-        // Return first 10 chars if it looks like a date
         return dateStr.Length >= 10 ? dateStr[..10] : dateStr;
     }
 
     private string GetResourceSummary(StoredResource item)
     {
-        if (string.IsNullOrWhiteSpace(item.JsonSource)) return "";
-        
-        try
+        var resource = item.ParsedResource;
+        if (resource == null) return "";
+
+        return resource switch
         {
-            using var doc = JsonDocument.Parse(item.JsonSource);
-            var root = doc.RootElement;
-            
-            switch (item.TypeName)
-            {
-                case "QuestionnaireResponse":
-                    if (root.TryGetProperty("questionnaire", out var questionnaire))
-                        return questionnaire.GetString() ?? "";
-                    break;
-                case "Procedure":
-                    return GetCodeDisplay(root, "code");
-                case "Encounter":
-                    if (root.TryGetProperty("type", out var types) && types.GetArrayLength() > 0)
-                        return GetCodeableConceptDisplay(types[0]);
-                    break;
-                case "Observation":
-                    return GetCodeDisplay(root, "code");
-                case "Consent":
-                    if (root.TryGetProperty("status", out var status))
-                        return $"Status: {status.GetString()}";
-                    break;
-                case "Condition":
-                    return GetCodeDisplay(root, "code");
-                case "DocumentReference":
-                    if (root.TryGetProperty("description", out var desc))
-                        return desc.GetString() ?? "";
-                    return GetCodeDisplay(root, "type");
-                case "Patient":
-                    return GetPatientName(root);
-                case "Practitioner":
-                    return GetPractitionerName(root);
-                case "Organization":
-                    if (root.TryGetProperty("name", out var orgName))
-                        return orgName.GetString() ?? "";
-                    break;
-                case "OperationOutcome":
-                    return GetOperationOutcomeSummary(root);
-            }
-        }
-        catch { }
-        
-        return "";
+            QuestionnaireResponse qr => qr.Questionnaire ?? "",
+            Procedure proc => GetCodeableConceptDisplay(proc.Code),
+            Encounter enc => GetCodeableConceptDisplay(enc.Type?.FirstOrDefault()),
+            Goal goal => GetCodeableConceptDisplay(goal.Description),
+            Observation obs => GetCodeableConceptDisplay(obs.Code),
+            Consent con => $"Status: {con.Status}",
+            Condition cond => GetCodeableConceptDisplay(cond.Code),
+            DocumentReference doc => !string.IsNullOrEmpty(doc.Description) 
+                ? doc.Description 
+                : GetCodeableConceptDisplay(doc.Type),
+            Patient pat => GetHumanName(pat.Name?.FirstOrDefault()),
+            Practitioner prac => GetHumanName(prac.Name?.FirstOrDefault()),
+            Organization org => org.Name ?? "",
+            OperationOutcome oo => oo.Issue?.FirstOrDefault()?.Diagnostics 
+                ?? GetCodeableConceptDisplay(oo.Issue?.FirstOrDefault()?.Details) 
+                ?? "Operation Outcome",
+            _ => ""
+        };
     }
 
-    private string GetCodeDisplay(JsonElement root, string propertyName)
+    private string GetCodeableConceptDisplay(CodeableConcept? codeableConcept)
     {
-        if (root.TryGetProperty(propertyName, out var code))
-            return GetCodeableConceptDisplay(code);
-        return "";
+        if (codeableConcept == null) return "";
+        if (!string.IsNullOrEmpty(codeableConcept.Text)) return codeableConcept.Text;
+        var coding = codeableConcept.Coding?.FirstOrDefault();
+        return coding?.Display ?? coding?.Code ?? "";
     }
 
-    private string GetCodeableConceptDisplay(JsonElement codeableConcept)
+    private string GetHumanName(HumanName? name)
     {
-        if (codeableConcept.TryGetProperty("text", out var text))
-            return text.GetString() ?? "";
-        if (codeableConcept.TryGetProperty("coding", out var coding) && coding.GetArrayLength() > 0)
-        {
-            var firstCoding = coding[0];
-            if (firstCoding.TryGetProperty("display", out var display))
-                return display.GetString() ?? "";
-            if (firstCoding.TryGetProperty("code", out var codeVal))
-                return codeVal.GetString() ?? "";
-        }
-        return "";
-    }
-
-    private string GetPatientName(JsonElement root)
-    {
-        if (root.TryGetProperty("name", out var names) && names.GetArrayLength() > 0)
-        {
-            var name = names[0];
-            var parts = new List<string>();
-            if (name.TryGetProperty("given", out var given))
-                foreach (var g in given.EnumerateArray())
-                    parts.Add(g.GetString() ?? "");
-            if (name.TryGetProperty("family", out var family))
-                parts.Add(family.GetString() ?? "");
-            return string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)));
-        }
-        return "";
-    }
-
-    private string GetPractitionerName(JsonElement root)
-    {
-        return GetPatientName(root); // Same structure
-    }
-
-    private string GetOperationOutcomeSummary(JsonElement root)
-    {
-        if (root.TryGetProperty("issue", out var issues) && issues.GetArrayLength() > 0)
-        {
-            var issue = issues[0];
-            if (issue.TryGetProperty("diagnostics", out var diag))
-                return diag.GetString() ?? "Error";
-            if (issue.TryGetProperty("details", out var details))
-                return GetCodeableConceptDisplay(details);
-        }
-        return "Operation Outcome";
+        if (name == null) return "";
+        var parts = new List<string>();
+        if (name.Given != null) parts.AddRange(name.Given.Where(g => g != null)!);
+        if (!string.IsNullOrEmpty(name.Family)) parts.Add(name.Family);
+        return string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)));
     }
 
     private async Task LoadResourcesFromStorage()
@@ -424,22 +340,21 @@
         groupedResources.Clear();
         sourceSummary.Clear();
 
+        var deserializer = new FhirJsonDeserializer();
+
         try
         {
             var keys = await LocalStorage.KeysAsync();
             
             foreach (var key in keys)
             {
-                // Basic check to ensure it's likely a resource key (not setting/config)
-                // New format: slug_Type_Id. Old: Type-Id-Date.
-                // We'll rely on being able to parse it as a FHIR resource.
-                
                 var jsonSource = await LocalStorage.GetItemAsStringAsync(key);
                 if (string.IsNullOrWhiteSpace(jsonSource)) continue;
 
                 // Ignore small config values
                 if (jsonSource.Length < 10 || !jsonSource.TrimStart().StartsWith("{")) continue;
 
+                Resource? parsedResource = null;
                 string resourceType = "Unknown";
                 string resourceId = "Unknown";
                 string source = "Unknown";
@@ -448,37 +363,22 @@
 
                 try
                 {
-                    using var doc = JsonDocument.Parse(jsonSource);
-                    var root = doc.RootElement;
+                    // Parse using Firely SDK
+                    parsedResource = deserializer.DeserializeResource(jsonSource);
                     
-                    if (root.TryGetProperty("resourceType", out var typeProp))
+                    resourceType = parsedResource.TypeName;
+                    resourceId = parsedResource.Id ?? "Unknown";
+                    
+                    if (parsedResource.Meta != null)
                     {
-                        resourceType = typeProp.GetString() ?? "Unknown";
-                    }
-                    else continue; // Not a FHIR resource
-
-                    if (root.TryGetProperty("id", out var idProp))
-                    {
-                        resourceId = idProp.GetString() ?? "Unknown";
-                    }
-
-                    if (root.TryGetProperty("meta", out var meta))
-                    {
-                        if (meta.TryGetProperty("source", out var sourceProp))
+                        source = parsedResource.Meta.Source ?? "Unknown";
+                        if (parsedResource.Meta.LastUpdated.HasValue)
                         {
-                            source = sourceProp.GetString() ?? "Unknown";
-                        }
-                        
-                        // Use lastUpdated as "retrieval date" for sorting/grouping, 
-                        // or fallback to a default if missing.
-                        if (meta.TryGetProperty("lastUpdated", out var dateProp) && 
-                            dateProp.TryGetDateTime(out var dt))
-                        {
-                            retrievalDate = dt;
+                            retrievalDate = parsedResource.Meta.LastUpdated.Value.DateTime;
                         }
                     }
 
-                    isError = resourceType == "OperationOutcome";
+                    isError = parsedResource is OperationOutcome;
                 }
                 catch 
                 {
@@ -506,7 +406,8 @@
                     RetrievalDate = retrievalDate,
                     Source = source,
                     JsonSource = jsonSource,
-                    IsError = isError
+                    IsError = isError,
+                    ParsedResource = parsedResource
                 };
 
                 if (!groupedResources.ContainsKey(resourceType))
@@ -576,6 +477,7 @@
         public string Source { get; set; } = string.Empty;
         public string JsonSource { get; set; } = string.Empty;
         public bool IsError { get; set; }
+        public Resource? ParsedResource { get; set; }
     }
     
     private class SourceSummary

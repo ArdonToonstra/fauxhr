@@ -2,7 +2,6 @@ using FauxHR.Core.Interfaces;
 using FauxHR.Core.Services;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
-using System.Text.Json;
 using Hl7.Fhir.Rest;
 using Task = System.Threading.Tasks.Task;
 
@@ -250,18 +249,17 @@ public class AcpDataService
                             {
                                 var existingJson = await _localStorage.GetItemAsStringAsync(storageKey);
                                 
-                                // Lightweight check using System.Text.Json
+                                // Check if existing resource is newer using FHIR SDK
                                 if (!string.IsNullOrEmpty(existingJson))
                                 {
-                                    using var doc = JsonDocument.Parse(existingJson);
-                                    if (doc.RootElement.TryGetProperty("meta", out var meta) && 
-                                        meta.TryGetProperty("lastUpdated", out var lastUpdatedProp) &&
-                                        lastUpdatedProp.TryGetDateTime(out var existingLastUpdated))
+                                    var deserializer = new FhirJsonDeserializer();
+                                    var existingResource = deserializer.DeserializeResource(existingJson);
+                                    
+                                    if (existingResource?.Meta?.LastUpdated != null && 
+                                        res.Meta?.LastUpdated != null && 
+                                        res.Meta.LastUpdated <= existingResource.Meta.LastUpdated)
                                     {
-                                        if (res.Meta?.LastUpdated != null && res.Meta.LastUpdated <= existingLastUpdated)
-                                        {
-                                            shouldSave = false; // Existing is newer or same
-                                        }
+                                        shouldSave = false; // Existing is newer or same
                                     }
                                 }
                             }
@@ -274,21 +272,10 @@ public class AcpDataService
                         
                         if (shouldSave)
                         {
-                            // Serialize with pretty print
+                            // Serialize with FHIR SDK
                             var serializer = new FhirJsonSerializer();
-                            var rawJson = serializer.SerializeToString(res);
-                            
-                            try
-                            {
-                                var jsonDocument = System.Text.Json.JsonDocument.Parse(rawJson);
-                                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-                                var json = System.Text.Json.JsonSerializer.Serialize(jsonDocument, options);
-                                await _localStorage.SetItemAsStringAsync(storageKey, json);
-                            }
-                            catch
-                            {
-                                await _localStorage.SetItemAsStringAsync(storageKey, rawJson);
-                            }
+                            var json = serializer.SerializeToString(res);
+                            await _localStorage.SetItemAsStringAsync(storageKey, json);
                         }
                     }
                 }
@@ -386,20 +373,8 @@ public class AcpDataService
                             // Save to LocalStorage
                             var key = $"{resource.TypeName}-{resource.Id}-{DateTime.Now:yyyyMMdd}";
                             var serializer = new FhirJsonSerializer();
-                            var rawJson = serializer.SerializeToString(resource);
-                            
-                            // Pretty-print
-                            try
-                            {
-                                var jsonDocument = JsonDocument.Parse(rawJson);
-                                var options = new JsonSerializerOptions { WriteIndented = true };
-                                var json = JsonSerializer.Serialize(jsonDocument, options);
-                                await _localStorage.SetItemAsStringAsync(key, json);
-                            }
-                            catch
-                            {
-                                await _localStorage.SetItemAsStringAsync(key, rawJson);
-                            }
+                            var json = serializer.SerializeToString(resource);
+                            await _localStorage.SetItemAsStringAsync(key, json);
                             
                             allEntries.Add(new Bundle.EntryComponent { Resource = resource });
                             fetchedResources.Add(resource);
