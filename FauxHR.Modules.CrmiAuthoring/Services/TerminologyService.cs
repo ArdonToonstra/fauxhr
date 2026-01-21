@@ -172,7 +172,7 @@ public class TerminologyService
         foreach (var concept in concepts)
         {
             var displayPrefix = string.IsNullOrEmpty(prefix) ? "" : prefix + " > ";
-            yield return (concept.Code, displayPrefix + (concept.Display ?? concept.Code), concept.Definition);
+            yield return (concept.Code!, displayPrefix + (concept.Display ?? concept.Code), concept.Definition);
 
             if (concept.Concept != null)
             {

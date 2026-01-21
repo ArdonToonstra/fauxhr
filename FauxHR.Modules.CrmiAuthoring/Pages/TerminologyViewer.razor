@@ -181,7 +181,7 @@
                                 {
                                     <div class="border-bottom py-2 cursor-pointer" 
                                          style="cursor: pointer;"
-                                         @onclick="() => SelectValueSet(vs.Id)">
+                                         @onclick="async () => { if (vs.Id != null) await SelectValueSet(vs.Id); }">
                                         <div class="d-flex justify-content-between">
                                             <strong>@(vs.Title ?? vs.Name ?? "(untitled)")</strong>
                                             <span class="badge @GetStatusBadgeClass(vs.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown)">
@@ -224,7 +224,7 @@
                                 {
                                     <div class="border-bottom py-2"
                                          style="cursor: pointer;"
-                                         @onclick="() => SelectCodeSystem(cs.Id)">
+                                         @onclick="async () => { if (cs.Id != null) await SelectCodeSystem(cs.Id); }">
                                         <div class="d-flex justify-content-between">
                                             <strong>@(cs.Title ?? cs.Name ?? "(untitled)")</strong>
                                             <span class="badge @GetStatusBadgeClass(cs.Status ?? Hl7.Fhir.Model.PublicationStatus.Unknown)">
@@ -303,8 +303,8 @@
         var bundle = await TerminologyService.SearchValueSetsAsync(valueSetSearch);
         valueSets = bundle.Entry?
             .Select(e => e.Resource as Hl7.Fhir.Model.ValueSet)
-            .Where(r => r != null)
-            .ToList()! ?? new();
+            .OfType<Hl7.Fhir.Model.ValueSet>()
+            .ToList() ?? new();
         StateHasChanged();
     }
 
@@ -313,8 +313,8 @@
         var bundle = await TerminologyService.SearchCodeSystemsAsync(codeSystemSearch);
         codeSystems = bundle.Entry?
             .Select(e => e.Resource as Hl7.Fhir.Model.CodeSystem)
-            .Where(r => r != null)
-            .ToList()! ?? new();
+            .OfType<Hl7.Fhir.Model.CodeSystem>()
+            .ToList() ?? new();
         StateHasChanged();
     }
 

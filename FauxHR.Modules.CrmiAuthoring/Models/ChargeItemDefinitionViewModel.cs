@@ -144,10 +144,10 @@ public class ChargeItemDefinitionViewModel
             Jurisdictions = cid.Jurisdiction?.Select(x => CodeableConceptViewModel.FromCodeableConcept(x)).ToList() ?? new(),
             
             // URIs
-            DerivedFromUris = cid.DerivedFromUriElement?.Select(u => u.Value).Where(v => v != null).ToList() ?? new(),
-            PartOf = cid.PartOfElement?.Select(c => c.Value).Where(v => v != null).ToList() ?? new(),
-            Replaces = cid.ReplacesElement?.Select(c => c.Value).Where(v => v != null).ToList() ?? new(),
-            Instances = cid.Instance?.Select(r => r.Reference).Where(r => r != null).ToList() ?? new(),
+            DerivedFromUris = cid.DerivedFromUriElement?.Select(u => u.Value).OfType<string>().ToList() ?? new(),
+            PartOf = cid.PartOfElement?.Select(c => c.Value).OfType<string>().ToList() ?? new(),
+            Replaces = cid.ReplacesElement?.Select(c => c.Value).OfType<string>().ToList() ?? new(),
+            Instances = cid.Instance?.Select(r => r.Reference).OfType<string>().ToList() ?? new(),
             
             // Applicability
             Applicabilities = cid.Applicability?.Select(x => ApplicabilityViewModel.FromApplicability(x)).ToList() ?? new(),

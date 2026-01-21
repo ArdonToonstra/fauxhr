@@ -16,7 +16,7 @@ Prerequisites: [.NET 8 SDK](https://dotnet.microsoft.com/download)
 - **FauxHR.App**: The Blazor WebAssembly application.
 - **FauxHR.Core**: Shared logic and interfaces.
 - **FauxHR.Modules.ExitStrategy**: IKNL ACP Implementation Guide logic.
-- **FauxHR.MockData**: Scenario generators.
+- **FauxHR.Modules.CrmiAuthoring**: CRMI Authoring UIlogic.
 
 ## 📄 LForms Integration
 The application uses [LHC-Forms](https://lhncbc.github.io/lforms/) to render FHIR Questionnaires.
