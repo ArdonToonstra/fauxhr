@@ -19,7 +19,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h5 class="card-title mb-3">FHIR Servers</h5>
-                    
+
                     @if (AppState.CurrentServerUrl.Contains("nictiz.proxy.interoplab.eu"))
                     {
                         <div class="alert alert-warning" role="alert">
@@ -27,31 +27,89 @@
                             <p class="mb-2 mt-2">The Nictiz Conformancelab requires special browser settings to bypass CORS and SSL certificate validation.</p>
                             <p class="mb-2"><strong>Run Chrome with:</strong></p>
                             <code class="d-block bg-dark text-white p-2 rounded small" style="white-space: pre-wrap;">& "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir="C:\ChromeDevSession" --disable-web-security --disable-gpu --ignore-certificate-errors</code>
-                            <p class="mb-0 mt-2 small">⚠️ Only use this Chrome instance for testing. See <a href="https://github.com/ArdonToonstra/fauxhr#-testing-with-nictiz-conformancelab" target="_blank">README</a> for details.</p>
+                            <p class="mb-0 mt-2 small">Only use this Chrome instance for testing. See <a href="https://github.com/ArdonToonstra/fauxhr#-testing-with-nictiz-conformancelab" target="_blank">README</a> for details.</p>
                         </div>
                     }
-                    
+
                     <div class="list-group mb-3">
                         @foreach (var server in AppState.AvailableServers)
                         {
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-bold">@server.Label</div>
-                                    <div class="small text-muted">@server.Url</div>
-                                </div>
-                                <div>
-                                    @if(server.Url == AppState.CurrentServerUrl)
-                                    {
-                                        <span class="badge bg-success me-2">Active</span>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => SetActiveServer(server.Url)">Use</button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveServer(server.Url)">
-                                            <i class="bi bi-trash"></i>
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-bold">
+                                            @server.Label
+                                            @if (server.RequiresProxy)
+                                            {
+                                                <span class="badge bg-info-subtle text-info ms-1" title="Requests proxied through FauxHR.App.Server">Proxy</span>
+                                            }
+                                        </div>
+                                        <div class="small text-muted">@server.Url</div>
+                                    </div>
+                                    <div>
+                                        @if(server.Url == AppState.CurrentServerUrl)
+                                        {
+                                            <span class="badge bg-success me-2">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => SetActiveServer(server.Url)">Use</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveServer(server.Url)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => ToggleServerHeaders(server.Url)" title="Configure headers">
+                                            <i class="bi bi-gear"></i>
                                         </button>
-                                    }
+                                    </div>
                                 </div>
+
+                                @if (expandedServerUrl == server.Url)
+                                {
+                                    <div class="mt-3 pt-3 border-top">
+                                        <label class="form-label small fw-bold">Custom HTTP Headers</label>
+                                        @if (editingHeaders.Any())
+                                        {
+                                            <div class="table-responsive mb-2">
+                                                <table class="table table-sm table-bordered mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Header</th>
+                                                            <th>Value</th>
+                                                            <th style="width: 40px;"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var header in editingHeaders)
+                                                        {
+                                                            <tr>
+                                                                <td><input type="text" class="form-control form-control-sm border-0" @bind="header.Key" placeholder="Key" /></td>
+                                                                <td><input type="text" class="form-control form-control-sm border-0" @bind="header.Value" placeholder="Value" /></td>
+                                                                <td class="text-center">
+                                                                    <button class="btn btn-link link-danger p-0" @onclick="() => editingHeaders.Remove(header)">
+                                                                        <i class="bi bi-x-lg"></i>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        }
+                                        <div class="d-flex justify-content-between">
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => editingHeaders.Add(new HeaderItem())">
+                                                <i class="bi bi-plus-lg me-1"></i> Add Header
+                                            </button>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => SaveServerHeaders(server.Url)">
+                                                Save
+                                            </button>
+                                        </div>
+                                        @if (headerSavedForUrl == server.Url)
+                                        {
+                                            <span class="text-success small mt-1 d-block">Saved!</span>
+                                        }
+                                    </div>
+                                }
                             </div>
                         }
                     </div>
@@ -79,11 +137,11 @@
                 <div class="card-body">
                     <h5 class="card-title mb-3">Debug Tools</h5>
                     <p class="card-text">Quickly load test data.</p>
-                    
+
                     <button class="btn btn-outline-primary mb-2" @onclick="LoadDefaultPatient" disabled="@isLoading">
                         @if(isLoading) { <span>Loading...</span> } else { <span>Load "Hendrik Hartman"</span> }
                     </button>
-                    
+
                     @if (!string.IsNullOrEmpty(loadMessage))
                     {
                         <div class="mt-2 text-small @messageClass">
@@ -93,8 +151,8 @@
 
                     <div class="border-top pt-3 mt-3">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="showDebugInfo" 
-                                   checked="@AppState.ShowDebugInfo" 
+                            <input class="form-check-input" type="checkbox" id="showDebugInfo"
+                                   checked="@AppState.ShowDebugInfo"
                                    @onchange="@(e => AppState.SetShowDebugInfo((bool)e.Value!))" />
                             <label class="form-check-label" for="showDebugInfo">Enable Debug Mode (Show JSON)</label>
                         </div>
@@ -102,14 +160,14 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
-                    <h5 class="card-title mb-3">Reference Resolution</h5>                    
+                    <h5 class="card-title mb-3">Reference Resolution</h5>
                     <div class="mb-3">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="enableReferences" 
+                            <input class="form-check-input" type="checkbox" id="enableReferences"
                                    @bind="enableReferences" />
                             <label class="form-check-label" for="enableReferences">
                                 Enable automatic reference resolution
@@ -119,8 +177,8 @@
 
                     <div class="mb-3">
                         <label class="form-label">Resolution Depth: @resolutionDepth level(s)</label>
-                        <input type="range" class="form-range" min="1" max="5" 
-                               @bind="resolutionDepth" @bind:event="oninput" 
+                        <input type="range" class="form-range" min="1" max="5"
+                               @bind="resolutionDepth" @bind:event="oninput"
                                disabled="@(!enableReferences)" />
                         <div class="form-text">
                             Level 1: Direct references only. Level 3 (recommended).
@@ -140,10 +198,11 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h5 class="card-title mb-3">Conformance Testing</h5>
-                    
+
                     <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="conformanceMode" 
-                               @bind="conformanceMode" />
+                        <input class="form-check-input" type="checkbox" id="conformanceMode"
+                               checked="@conformanceMode"
+                               @onchange="@(e => { conformanceMode = (bool)e.Value!; AppState.SetConformanceTestingMode(conformanceMode); })" />
                         <label class="form-check-label" for="conformanceMode">
                             Enable Conformance Testing Mode
                         </label>
@@ -151,55 +210,11 @@
 
                     @if (conformanceMode)
                     {
-                        <div class="alert alert-warning small mb-3">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            Custom headers will be added to <strong>all</strong> outgoing FHIR requests.
-                        </div>
-
-                        <div class="table-responsive mb-3">
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Header</th>
-                                        <th>Value</th>
-                                        <th style="width: 50px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var header in customHeaders)
-                                    {
-                                        <tr>
-                                            <td>
-                                                <input type="text" class="form-control form-control-sm border-0" @bind="header.Key" placeholder="Key" />
-                                            </td>
-                                            <td>
-                                                <input type="text" class="form-control form-control-sm border-0" @bind="header.Value" placeholder="Value" />
-                                            </td>
-                                            <td class="text-center">
-                                                <button class="btn btn-link link-danger p-0" @onclick="() => RemoveHeader(header)">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <div class="d-flex justify-content-between mb-4">
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="AddHeader">
-                                <i class="bi bi-plus-lg me-1"></i> Add Header
-                            </button>
+                        <div class="alert alert-info small mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Per-server headers (configured above via <i class="bi bi-gear"></i>) are injected into all outgoing FHIR requests.
                         </div>
                     }
-
-                    <div class="d-flex align-items-center">
-                        <button class="btn btn-primary" @onclick="SaveConformanceSettings">Save Conformance Settings</button>
-                        @if (conformanceSaved)
-                        {
-                            <span class="text-success ms-2 fade-in">Saved!</span>
-                        }
-                    </div>
                 </div>
             </div>
         </div>
@@ -209,35 +224,55 @@
 @code {
     private string newServerLabel = "";
     private string newServerUrl = "";
-    
+
     private bool isLoading = false;
     private bool referenceSaved = false;
     private string loadMessage = "";
     private string messageClass = "";
-    
+
     private bool enableReferences = true;
     private int resolutionDepth = 3;
 
     // Conformance Settings
-    private bool conformanceMode = false;
-    private bool conformanceSaved = false;
-    private List<HeaderItem> customHeaders = new();
+    private bool conformanceMode = true;
+
+    // Per-server header editing
+    private string? expandedServerUrl;
+    private List<HeaderItem> editingHeaders = new();
+    private string? headerSavedForUrl;
 
     protected override void OnInitialized()
     {
         enableReferences = AppState.EnableReferenceResolution;
         resolutionDepth = AppState.ReferenceResolutionDepth;
-
         conformanceMode = AppState.ConformanceTestingMode;
-        // Copy list to avoid direct state mutation before save
-        customHeaders = AppState.CustomHeaders.Select(h => new HeaderItem { Key = h.Key, Value = h.Value }).ToList();
+    }
+
+    private void ToggleServerHeaders(string serverUrl)
+    {
+        if (expandedServerUrl == serverUrl)
+        {
+            expandedServerUrl = null;
+            return;
+        }
+        expandedServerUrl = serverUrl;
+        headerSavedForUrl = null;
+        var server = AppState.AvailableServers.FirstOrDefault(s => s.Url == serverUrl);
+        editingHeaders = server?.CustomHeaders.Select(h => new HeaderItem { Key = h.Key, Value = h.Value }).ToList() ?? new();
+    }
+
+    private void SaveServerHeaders(string serverUrl)
+    {
+        var validHeaders = editingHeaders.Where(h => !string.IsNullOrWhiteSpace(h.Key)).ToList();
+        AppState.UpdateServerHeaders(serverUrl, validHeaders);
+        headerSavedForUrl = serverUrl;
+        Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { headerSavedForUrl = null; StateHasChanged(); }));
     }
 
     private void SaveReferenceSettings()
     {
         AppState.SetReferenceResolutionSettings(enableReferences, resolutionDepth);
         referenceSaved = true;
-        // Reset message after time?
         Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { referenceSaved = false; StateHasChanged(); }));
     }
 
@@ -267,9 +302,8 @@
         loadMessage = "";
         try
         {
-            // Try to find Hendrik Hartman: 999911120 | http://fhir.nl/fhir/NamingSystem/bsn
             var patient = await FhirService.SearchPatientByIdentifierAsync("http://fhir.nl/fhir/NamingSystem/bsn", "999911120");
-            
+
             if (patient != null)
             {
                 AppState.SetPatient(patient);
@@ -291,26 +325,5 @@
         {
             isLoading = false;
         }
-        }
-
-
-    private void AddHeader()
-    {
-        customHeaders.Add(new HeaderItem());
-    }
-
-    private void RemoveHeader(HeaderItem item)
-    {
-        customHeaders.Remove(item);
-    }
-
-    private void SaveConformanceSettings()
-    {
-        // Filter out empty keys
-        var validHeaders = customHeaders.Where(h => !string.IsNullOrWhiteSpace(h.Key)).ToList();
-        AppState.SetConformanceSettings(conformanceMode, validHeaders);
-        
-        conformanceSaved = true;
-        Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { conformanceSaved = false; StateHasChanged(); }));
     }
 }

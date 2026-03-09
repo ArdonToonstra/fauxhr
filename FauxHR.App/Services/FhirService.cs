@@ -31,15 +31,15 @@ public class FhirService : IFhirService
 
     private void InitializeClient()
     {
-        // In Blazor WASM, always provide a custom handler to prevent FhirClient from 
+        // In Blazor WASM, always provide a custom handler to prevent FhirClient from
         // creating its own handler which would try to set AutomaticDecompression (not supported)
-        var customHandler = new CustomHeaderHandler(_appState);
+        var customHandler = new CustomHeaderHandler(_appState, _httpClient);
 
         _client = new FhirClient(_appState.CurrentServerUrl, 
             new FhirClientSettings
             {
                 PreferredFormat = ResourceFormat.Json,
-                VerifyFhirVersion = true,
+                VerifyFhirVersion = false, // Skip metadata check — authenticated servers often require auth on /metadata too
                 ParserSettings = new ParserSettings
                 {
                     // Allow empty strings instead of throwing exceptions
@@ -55,21 +55,34 @@ public class FhirService : IFhirService
     private class CustomHeaderHandler : HttpMessageHandler
     {
         private readonly AppState _state;
+        private readonly Uri _appBaseUri;
 
-        public CustomHeaderHandler(AppState state)
+        public CustomHeaderHandler(AppState state, HttpClient httpClient)
         {
             _state = state;
+            _appBaseUri = httpClient.BaseAddress ?? new Uri("http://localhost/");
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             // Clone the request to avoid "already sent" error
             var clonedRequest = await CloneHttpRequestMessageAsync(request);
-            
-            // Add custom headers only when in conformance testing mode
+
+            // Route through local server proxy when the target server has CORS issues.
+            // The server project (FauxHR.App.Server) exposes /fhir-proxy/{path} and
+            // forwards the request server-to-server, bypassing browser CORS enforcement.
+            if (_state.UseServerProxy && clonedRequest.RequestUri != null)
+            {
+                var serverBase = new Uri(_state.CurrentServerUrl.TrimEnd('/') + "/");
+                var relativePath = serverBase.MakeRelativeUri(clonedRequest.RequestUri).ToString();
+                clonedRequest.RequestUri = new Uri(_appBaseUri, $"fhir-proxy/{relativePath}");
+                clonedRequest.Headers.TryAddWithoutValidation("X-Fhir-Server", _state.CurrentServerUrl);
+            }
+
+            // Inject per-server custom headers when conformance testing mode is on
             if (_state.ConformanceTestingMode)
             {
-                foreach (var header in _state.CustomHeaders)
+                foreach (var header in _state.CurrentServerHeaders)
                 {
                     if (!string.IsNullOrWhiteSpace(header.Key))
                     {
@@ -81,11 +94,45 @@ public class FhirService : IFhirService
                     }
                 }
             }
-            
+
+            // Capture request details for debug logging.
+            // When proxied, reconstruct the actual upstream URL for clarity.
+            var logUrl = clonedRequest.RequestUri?.ToString() ?? "";
+            if (_state.UseServerProxy && logUrl.Contains("/fhir-proxy/"))
+            {
+                var proxyPath = logUrl[(logUrl.IndexOf("/fhir-proxy/") + "/fhir-proxy/".Length)..];
+                logUrl = $"{_state.CurrentServerUrl.TrimEnd('/')}/{proxyPath}";
+            }
+            var logMethod = clonedRequest.Method.ToString();
+            var logHeaders = new Dictionary<string, string>();
+            foreach (var h in clonedRequest.Headers)
+            {
+                if (h.Key.Equals("X-Fhir-Server", StringComparison.OrdinalIgnoreCase)) continue;
+                logHeaders[h.Key] = string.Join(", ", h.Value);
+            }
+
             // Create a new HttpClient for each request (Blazor WASM compatible)
             // This uses the browser's fetch API under the hood
             using var httpClient = new HttpClient();
-            return await httpClient.SendAsync(clonedRequest, cancellationToken);
+            var response = await httpClient.SendAsync(clonedRequest, cancellationToken);
+
+            // Log request/response for debug display
+            try
+            {
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _state.SetLastRequestLog(new FhirRequestLog
+                {
+                    Method = logMethod,
+                    Url = logUrl,
+                    RequestHeaders = logHeaders,
+                    StatusCode = (int)response.StatusCode,
+                    ResponseBody = responseBody.Length > 2000 ? responseBody[..2000] + "\n... (truncated)" : responseBody,
+                    Timestamp = DateTime.Now
+                });
+            }
+            catch { /* don't let logging break the request */ }
+
+            return response;
         }
 
         private static async Task<HttpRequestMessage> CloneHttpRequestMessageAsync(HttpRequestMessage request)
