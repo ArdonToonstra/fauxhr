@@ -1,0 +1,21 @@
+services:
+  fauxhr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fauxhr
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Semicolon-separated list of allowed FHIR server hostnames for the proxy.
+      # Add/remove hosts here to control which upstream servers the proxy can reach.
+      - FHIR_PROXY_ALLOWLIST=server.fire.ly;hapi.fhir.org;nictiz.proxy.interoplab.eu;pzp-coalitie.proxy.interoplab.eu
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    mem_limit: 256m

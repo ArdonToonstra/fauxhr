@@ -1,15 +1,48 @@
 using System.Net;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// --- Request Size Limits ---
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 5 * 1024 * 1024; // 5 MB
+});
+
+// --- SSRF Allowlist ---
+var allowlistEnv = builder.Configuration["FHIR_PROXY_ALLOWLIST"]
+    ?? "server.fire.ly;hapi.fhir.org;nictiz.proxy.interoplab.eu;pzp-coalitie.proxy.interoplab.eu";
+var allowedHosts = new HashSet<string>(
+    allowlistEnv.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+    StringComparer.OrdinalIgnoreCase);
+
+// --- Rate Limiting ---
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Request.Headers["CF-Connecting-IP"].FirstOrDefault()
+                          ?? ctx.Connection.RemoteIpAddress?.ToString()
+                          ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 builder.Services.AddHttpClient("FhirProxy")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {
-        // Automatically decompress gzip/deflate/brotli so the proxy forwards clean plaintext
         AutomaticDecompression = DecompressionMethods.All
     });
 
 var app = builder.Build();
 
+app.UseRateLimiter();
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
@@ -23,6 +56,22 @@ app.Map("/fhir-proxy/{**path}", async (HttpContext ctx, IHttpClientFactory httpC
     {
         ctx.Response.StatusCode = 400;
         await ctx.Response.WriteAsync("X-Fhir-Server header is required");
+        return;
+    }
+
+    // SSRF protection: validate URL scheme and check host against allowlist
+    if (!Uri.TryCreate(targetServer, UriKind.Absolute, out var targetBase)
+        || (targetBase.Scheme != "https" && targetBase.Scheme != "http"))
+    {
+        ctx.Response.StatusCode = 400;
+        await ctx.Response.WriteAsync("Invalid X-Fhir-Server URL");
+        return;
+    }
+
+    if (!allowedHosts.Contains(targetBase.Host))
+    {
+        ctx.Response.StatusCode = 403;
+        await ctx.Response.WriteAsync($"FHIR server host '{targetBase.Host}' is not in the allowlist");
         return;
     }
 

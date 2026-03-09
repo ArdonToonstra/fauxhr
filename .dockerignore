@@ -1,0 +1,14 @@
+**/.dockerignore
+**/bin
+**/obj
+**/out
+**/.vs
+**/.vscode
+**/.git
+**/.github
+**/node_modules
+**/*.user
+**/*.suo
+**/Thumbs.db
+**/Desktop.ini
+**/.DS_Store
