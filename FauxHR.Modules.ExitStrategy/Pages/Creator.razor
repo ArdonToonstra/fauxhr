@@ -695,7 +695,16 @@
 
         // LifecycleStatus - hardcoded to active
         goal.LifecycleStatus = Goal.GoalLifecycleStatus.Active;
-        
+
+        // Category - ACP category code
+        goal.Category.Add(new CodeableConcept
+        {
+            Coding = new List<Coding>
+            {
+                new Coding("http://snomed.info/sct", "713603004", "advance care planning")
+            }
+        });
+
         // Subject -> Patient
         if (AppState.CurrentPatient != null)
         {
@@ -982,6 +991,13 @@
             "geregistreerd in orgaan donorregister",
             obsOrganDonation,
             "code");
+        obsOrganResource.Method = new CodeableConcept
+        {
+            Coding = new List<Coding>
+            {
+                new Coding("http://snomed.info/sct", "1156040003", "self reported")
+            }
+        };
         transactionBundleResources.Add(obsOrganResource);
     }
 

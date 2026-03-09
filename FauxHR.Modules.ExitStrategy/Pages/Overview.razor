@@ -21,7 +21,7 @@
         <div>
             @if(AppState.CurrentPatient != null)
             {
-                 <div class="d-flex align-items-center position-relative">
+                 <div class="d-flex align-items-center flex-wrap gap-2 position-relative">
                     @if(showPullOptions)
                     {
                         <div class="card shadow rounded position-absolute end-0 top-100 mt-2" style="z-index: 1050; width: 320px;">
@@ -33,7 +33,7 @@
                                         <label class="list-group-item d-flex gap-2">
                                             <input class="form-check-input flex-shrink-0" type="checkbox" checked="@selectedServerUrls.Contains(s.Url)" 
                                                    @onchange="() => ToggleServerSelection(s.Url)">
-                                            <span>
+                                            <span class="overflow-hidden">
                                                 <span class="d-block fw-semibold text-truncate">@s.Label</span>
                                                 <span class="d-block small text-muted text-truncate">@s.Url</span>
                                             </span>
@@ -64,13 +64,13 @@
                         </button>
                     </div>
                     
-                    <button class="btn btn-outline-primary btn-lg ms-2" @onclick='() => Navigation.NavigateTo("acp/resources")'>
+                    <button class="btn btn-outline-primary btn-lg" @onclick='() => Navigation.NavigateTo("acp/resources")'>
                         <i class="bi bi-database me-2"></i>View All Resources
                     </button>
-                    <button class="btn btn-outline-success btn-lg ms-2" @onclick='() => Navigation.NavigateTo("acp/viewer")'>
+                    <button class="btn btn-outline-success btn-lg" @onclick='() => Navigation.NavigateTo("acp/viewer")'>
                         <i class="bi bi-eye me-2"></i>View ACP Data
                     </button>
-                    <button class="btn btn-success btn-lg ms-2" @onclick='() => Navigation.NavigateTo("acp/creator")'>
+                    <button class="btn btn-success btn-lg" @onclick='() => Navigation.NavigateTo("acp/creator")'>
                         <i class="bi bi-plus-circle me-2"></i>Create New Entry
                     </button>
                 </div>
@@ -94,7 +94,7 @@
                  <div class="card-header bg-white border-bottom-0 pt-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-normal mb-0 d-flex align-items-center">
                         <i class="bi bi-hdd-network me-2 text-primary"></i>@job.ServerLabel
-                        <small class="text-muted ms-2 fs-6">(@job.ServerUrl)</small>
+                        <small class="text-muted ms-2 fs-6 text-truncate d-inline-block" style="max-width: 350px;" title="@job.ServerUrl">(@job.ServerUrl)</small>
                     </h5>
                     <span class="badge @(job.Status == "Completed" ? "bg-success" : job.Status.StartsWith("Error") || job.Status == "Patient Not Found" ? "bg-danger" : "bg-warning text-dark")">
                         @job.Status

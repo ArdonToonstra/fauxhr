@@ -363,11 +363,28 @@ public class AcpDataService
                         
                         // Check if we already have this resource
                         var keyPattern = $"{resourceType}-{resourceId}";
-                        if (existingKeys.Any(k => k.StartsWith(keyPattern)))
+                        var existingKey = existingKeys.FirstOrDefault(k => k.StartsWith(keyPattern));
+                        if (existingKey != null)
                         {
+                            // Still extract references from the cached resource so deeper links are followed
+                            try
+                            {
+                                var cachedJson = await _localStorage.GetItemAsStringAsync(existingKey);
+                                if (!string.IsNullOrEmpty(cachedJson))
+                                {
+                                    var deserializer = new FhirJsonDeserializer();
+                                    var cachedResource = deserializer.DeserializeResource(cachedJson);
+                                    if (cachedResource != null)
+                                        ExtractReferences(cachedResource, referencedUrls);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error reading cached resource {existingKey}: {ex.Message}");
+                            }
                             continue;
                         }
-                        
+
                         // Fetch the resource
                         var resource = await _fhirService.GetAsync($"{resourceType}/{resourceId}");
                         if (resource != null)
@@ -381,10 +398,10 @@ public class AcpDataService
                             var serializer = new FhirJsonSerializer();
                             var json = serializer.SerializeToString(resource);
                             await _localStorage.SetItemAsStringAsync(key, json);
-                            
+
                             allEntries.Add(new Bundle.EntryComponent { Resource = resource });
                             fetchedResources.Add(resource);
-                            
+
                             // Extract references from this newly fetched resource
                             ExtractReferences(resource, referencedUrls);
                         }
