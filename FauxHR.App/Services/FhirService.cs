@@ -35,18 +35,12 @@ public class FhirService : IFhirService
         // creating its own handler which would try to set AutomaticDecompression (not supported)
         var customHandler = new CustomHeaderHandler(_appState, _httpClient);
 
-        _client = new FhirClient(_appState.CurrentServerUrl, 
+        _client = new FhirClient(_appState.CurrentServerUrl,
             new FhirClientSettings
             {
                 PreferredFormat = ResourceFormat.Json,
                 VerifyFhirVersion = false, // Skip metadata check — authenticated servers often require auth on /metadata too
-                ParserSettings = new ParserSettings
-                {
-                    // Allow empty strings instead of throwing exceptions
-                    // This handles cases where FHIR servers return empty description fields
-                    PermissiveParsing = true,
-                    AllowUnrecognizedEnums = true
-                }
+                SerializationEngine = FhirSerializationEngineFactory.Recoverable(ModelInfo.ModelInspector)
             },
             customHandler);
     }
