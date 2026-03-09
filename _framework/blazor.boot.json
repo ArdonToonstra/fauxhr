@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "FauxHR.App",
   "resources": {
-    "hash": "sha256-maLNS9dXlFP7wAu0xiLEL/Qhgacoq9ue7IXw5r8alE8=",
+    "hash": "sha256-H5b3aUTYy+jyaVm67XzTbxT+wUluBfW03H4XwuNLsUg=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-NljIbpK/1KCj0+knpX8U77Rbl5kTtfFIuFjK7AuczEw="
     },
@@ -90,10 +90,10 @@
       "System.Xml.XPath.XDocument.wasm": "sha256-9F8/fgHc6xJONDL9hcUU/kBkFnt8lsUIFu9JjFEF6Zo=",
       "System.wasm": "sha256-jXhnUNHzjjL7Plo7WcHuX7V5Dc/Umt+qmGGC+Js76SE=",
       "System.Private.CoreLib.wasm": "sha256-zih9/vqpODlKizQUEwF5hHDrQx9LxibNESxBYnWY3EM=",
-      "FauxHR.Core.wasm": "sha256-1Y5t+7kTcBrUIITzotfDVSBjW7VwhTWrEmsajz7p/5Y=",
-      "FauxHR.Modules.CrmiAuthoring.wasm": "sha256-v/ZokgtqlgV4hdMQbKszJC8VgsBGjobqcHQOq9ByuRo=",
-      "FauxHR.Modules.ExitStrategy.wasm": "sha256-nVtIsnsy7jK00rBytKuaTH9cbQXwXbiZ7SnhcXZo8UE=",
-      "FauxHR.App.wasm": "sha256-fuRvpQIQhz19h5XIKijMVmG0HuxB4eQPEJvJoYebJOM="
+      "FauxHR.Core.wasm": "sha256-GkO6HmLCojdxMLsfOzGVSe8diwd243ph6i5Y9vkDZYY=",
+      "FauxHR.Modules.CrmiAuthoring.wasm": "sha256-+QsOxVPOAIEAvmRN/7A4CcwXmoT6uWZjzIRqky8n6EM=",
+      "FauxHR.Modules.ExitStrategy.wasm": "sha256-Wv2JO/HNVgV96ZEoIVB+uzqKBH068Hu1Ckq3jGGWM6A=",
+      "FauxHR.App.wasm": "sha256-1vKQC1NOSXMKonNqwFD0IQhhYeplRCo2AlGsVx1Q4ek="
     }
   },
   "cacheBootResources": true,
