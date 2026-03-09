@@ -27,6 +27,7 @@ public class AppState
         {
             Url = "https://nictiz.proxy.interoplab.eu/d/67c22c0aba87c4750a34a962/nictiz/r4/fhir",
             Label = "Conformancelab Nictiz",
+            RequiresProxy = true,
             CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Basic TmljdGl6OlBhc3N3b3Jk" } }
         },
         new FhirServerConfig
