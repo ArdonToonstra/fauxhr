@@ -59,7 +59,7 @@
 
         if (AppState.CurrentPatient == null)
         {
-            var patient = await FhirService.GetPatientByIdAsync("F1-ACP-Patient-HendrikHartman");
+            var patient = await FhirService.GetPatientByIdAsync("ACP-Patient-HendrikHartman-Pat1");
             if (patient != null)
             {
                 AppState.SetPatient(patient);

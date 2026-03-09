@@ -39,7 +39,14 @@ public class FhirService : IFhirService
             new FhirClientSettings
             {
                 PreferredFormat = ResourceFormat.Json,
-                VerifyFhirVersion = true
+                VerifyFhirVersion = true,
+                ParserSettings = new ParserSettings
+                {
+                    // Allow empty strings instead of throwing exceptions
+                    // This handles cases where FHIR servers return empty description fields
+                    PermissiveParsing = true,
+                    AllowUnrecognizedEnums = true
+                }
             },
             customHandler);
     }

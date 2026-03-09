@@ -43,11 +43,17 @@ public class AcpDataService
     {
         return new List<AcpQuery>
         {
-            new() 
-            { 
-                Title = "ACP Procedures and Encounters", 
-                ResourceType = "Procedure", 
-                QueryString = $"patient=Patient/{patientId}&code=http://snomed.info/sct|713603004&_include=Procedure:encounter" 
+            new()
+            {
+                Title = "ACP Procedures and Encounters",
+                ResourceType = "Procedure",
+                QueryString = $"patient=Patient/{patientId}&code=http://snomed.info/sct|713603004&_include=Procedure:encounter"
+            },
+            new()
+            {
+                Title = "ACP Encounters (via reason-reference)",
+                ResourceType = "Encounter",
+                QueryString = $"patient=Patient/{patientId}&reason-reference:Procedure.code=http://snomed.info/sct|713603004&_include=Encounter:reason-reference"
             },
             new() 
             { 
@@ -65,25 +71,25 @@ public class AcpDataService
             { 
                 Title = "Medical Policy Goals", 
                 ResourceType = "Goal", 
-                QueryString = $"patient=Patient/{patientId}&description=http://snomed.info/sct|385987000,1351964001,713148004" 
+                QueryString = $"patient=Patient/{patientId}&category=http://snomed.info/sct|713603004"
             },
             new() 
             { 
                 Title = "Specific Care Observations", 
                 ResourceType = "Observation", 
-                QueryString = $"patient=Patient/{patientId}&code=http://snomed.info/sct|153851000146100,395091006,340171000146104,247751003" 
+                QueryString = $"patient=Patient/{patientId}&code=http://snomed.info/sct|153851000146100,395091006,340171000146104,247751003,570801000146104"
             },
             new() 
             { 
                 Title = "ICD Medical Devices", 
                 ResourceType = "DeviceUseStatement", 
-                QueryString = $"patient=Patient/{patientId}&device.type:in=https://api.iknl.nl/docs/pzp/r4/ValueSet/ACP-MedicalDeviceProductType-ICD&_include=DeviceUseStatement:device" 
+                QueryString = $"patient=Patient/{patientId}&device.type=http://snomed.info/sct|72506001,465460004,468542000,704707009,1263462004,1236894001&_include=DeviceUseStatement:device"
             },
-            new() 
-            { 
-                Title = "Communications", 
-                ResourceType = "Communication", 
-                QueryString = $"patient=Patient/{patientId}&reason-code=http://snomed.info/sct|713603004" 
+            new()
+            {
+                Title = "Communication Requests",
+                ResourceType = "CommunicationRequest",
+                QueryString = $"patient={patientId}&category=http://snomed.info/sct|223449006"
             },
             new() 
             { 
