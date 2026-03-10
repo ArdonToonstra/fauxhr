@@ -27,15 +27,13 @@ public class AppState
         {
             Url = "https://nictiz.proxy.interoplab.eu/d/67c22c0aba87c4750a34a962/nictiz/r4/fhir",
             Label = "Conformancelab Nictiz",
-            RequiresProxy = true,
-            CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Basic TmljdGl6OlBhc3N3b3Jk" } }
+            CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Basic TmljdGl6OlBhc3N3b3Jk" } } // TEST credentials only
         },
         new FhirServerConfig
         {
             Url = "https://pzp-coalitie.proxy.interoplab.eu/r4/fhir",
             Label = "PZP Coalitie (Interoplab)",
-            RequiresProxy = true,
-            CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Bearer 27e14882-0370-400b-a6d4-dee94c9fcf10" } }
+            CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Bearer 27e14882-0370-400b-a6d4-dee94c9fcf10" } } // TEST token only
         }
     };
 
