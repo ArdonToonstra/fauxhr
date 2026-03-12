@@ -10,6 +10,11 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 5 * 1024 * 1024; // 5 MB
 });
 
+// --- SSL cert bypass (opt-in for dev/conformance servers with private CA certs) ---
+var ignoreCertErrors = string.Equals(
+    builder.Configuration["FHIR_PROXY_IGNORE_CERT_ERRORS"], "true",
+    StringComparison.OrdinalIgnoreCase);
+
 // --- SSRF Allowlist ---
 var allowlistEnv = builder.Configuration["FHIR_PROXY_ALLOWLIST"]
     ?? "server.fire.ly;hapi.fhir.org;nictiz.proxy.interoplab.eu;pzp-coalitie.proxy.interoplab.eu";
@@ -37,7 +42,12 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddHttpClient("FhirProxy")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {
-        AutomaticDecompression = DecompressionMethods.All
+        AutomaticDecompression = DecompressionMethods.All,
+        // Allow bypassing private-CA certificates (e.g. interoplab.eu dev servers).
+        // Only enabled when FHIR_PROXY_IGNORE_CERT_ERRORS=true is explicitly set.
+        ServerCertificateCustomValidationCallback = ignoreCertErrors
+            ? HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            : null
     });
 
 var app = builder.Build();
@@ -45,6 +55,9 @@ var app = builder.Build();
 app.UseRateLimiter();
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
+
+// Health-check endpoint so Blazor WASM can detect whether the proxy is available.
+app.MapGet("/fhir-proxy/ping", () => Results.Ok());
 
 // FHIR reverse proxy — bypasses broken CORS headers from upstream servers.
 // Blazor WASM sends requests to /fhir-proxy/{path} (same origin, no CORS),
@@ -91,16 +104,35 @@ app.Map("/fhir-proxy/{**path}", async (HttpContext ctx, IHttpClientFactory httpC
     }
 
     HttpResponseMessage upstream;
-    if (HttpMethods.IsGet(ctx.Request.Method))
+    try
     {
-        upstream = await client.GetAsync(targetUri);
+        if (HttpMethods.IsGet(ctx.Request.Method))
+        {
+            upstream = await client.GetAsync(targetUri);
+        }
+        else
+        {
+            var content = new StreamContent(ctx.Request.Body);
+            if (ctx.Request.ContentType != null)
+                content.Headers.TryAddWithoutValidation("Content-Type", ctx.Request.ContentType);
+            upstream = await client.PostAsync(targetUri, content);
+        }
     }
-    else
+    catch (HttpRequestException ex)
     {
-        var content = new StreamContent(ctx.Request.Body);
-        if (ctx.Request.ContentType != null)
-            content.Headers.TryAddWithoutValidation("Content-Type", ctx.Request.ContentType);
-        upstream = await client.PostAsync(targetUri, content);
+        ctx.Response.StatusCode = 502;
+        var hint = ex.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase)
+                   || ex.InnerException?.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase) == true
+            ? " The upstream server may be using a certificate from a private/untrusted CA. Set FHIR_PROXY_IGNORE_CERT_ERRORS=true to bypass (dev environments only)."
+            : "";
+        await ctx.Response.WriteAsync($"Upstream FHIR server unreachable: {ex.Message}.{hint}");
+        return;
+    }
+    catch (Exception ex)
+    {
+        ctx.Response.StatusCode = 502;
+        await ctx.Response.WriteAsync($"Proxy error: {ex.GetType().Name}: {ex.Message}");
+        return;
     }
 
     ctx.Response.StatusCode = (int)upstream.StatusCode;

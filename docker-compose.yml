@@ -12,6 +12,9 @@ services:
       # Semicolon-separated list of allowed FHIR server hostnames for the proxy.
       # Add/remove hosts here to control which upstream servers the proxy can reach.
       - FHIR_PROXY_ALLOWLIST=server.fire.ly;hapi.fhir.org;nictiz.proxy.interoplab.eu;pzp-coalitie.proxy.interoplab.eu
+      # Bypass SSL certificate validation for upstream servers that use a private/internal CA
+      # (e.g. interoplab.eu conformance servers). Only enable in dev/test environments.
+      - FHIR_PROXY_IGNORE_CERT_ERRORS=true
     read_only: true
     tmpfs:
       - /tmp

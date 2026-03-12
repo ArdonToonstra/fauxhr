@@ -20,10 +20,41 @@
                 <div class="card-body">
                     <h5 class="card-title mb-3">FHIR Servers</h5>
 
-                    @if (AppState.CurrentServerConfig?.RequiresProxy == true)
+                    @{
+                        var _cfg = AppState.CurrentServerConfig;
+                        var _proxyActive = AppState.UseServerProxy;
+                        var _proxyMissing = (_cfg?.RequiresProxy ?? false) && !AppState.IsServerProxyAvailable;
+                    }
+                    @if (_proxyActive)
+                    {
+                        <div class="alert alert-success py-2" role="alert">
+                            <i class="bi bi-shield-check me-1"></i>
+                            <strong>Proxy active.</strong> Requests are routed server-to-server, bypassing CORS and certificate issues.
+                        </div>
+                    }
+                    else if (_proxyMissing && (_cfg?.HasUntrustedCert ?? false))
                     {
                         <div class="alert alert-warning" role="alert">
-                            <strong><i class="bi bi-exclamation-triangle-fill"></i> Server Proxy Required</strong>
+                            <strong><i class="bi bi-shield-exclamation me-1"></i> Certificate Acceptance Required</strong>
+                            <p class="mb-2 mt-2">
+                                This server uses a certificate from a private CA that browsers do not trust by default.
+                                Before making requests, open the link below, accept the browser's certificate warning, then return here.
+                            </p>
+                            <a href="@(_cfg!.Url.TrimEnd('/') + "/metadata")" target="_blank" rel="noopener noreferrer"
+                               class="btn btn-sm btn-outline-warning mb-2">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Open &amp; Accept Certificate
+                            </a>
+                            <p class="mb-0 small text-muted">
+                                For a seamless experience without manual cert acceptance, use
+                                <a href="https://fauxhr.donit.be" target="_blank">fauxhr.donit.be</a>
+                                where the server proxy handles this automatically.
+                            </p>
+                        </div>
+                    }
+                    else if (_proxyMissing)
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            <strong><i class="bi bi-exclamation-triangle-fill"></i> Server Proxy Not Running</strong>
                             <p class="mb-2 mt-2">This server requires the <strong>FauxHR.App.Server</strong> project to be running. Requests are routed through a local reverse proxy to bypass CORS restrictions.</p>
                             <p class="mb-2"><strong>Run locally:</strong></p>
                             <code class="d-block bg-dark text-white p-2 rounded small">dotnet run --project FauxHR.App.Server</code>

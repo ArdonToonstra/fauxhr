@@ -34,8 +34,24 @@ builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.ValueSetBinding
 
 var host = builder.Build();
 
-// Initialize practitioner context on startup
 var scope = host.Services.CreateScope();
+var appState = scope.ServiceProvider.GetRequiredService<FauxHR.Core.Services.AppState>();
+
+// Detect whether the FauxHR.App.Server proxy is available.
+// A 200 from /fhir-proxy/ping means the server is running alongside this WASM app.
+// On GitHub Pages there is no server, so this silently fails and direct mode is used.
+try
+{
+    var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
+    var probe = await httpClient.GetAsync("fhir-proxy/ping");
+    appState.SetServerProxyAvailable(probe.IsSuccessStatusCode);
+}
+catch
+{
+    appState.SetServerProxyAvailable(false);
+}
+
+// Initialize practitioner context on startup
 var practitionerService = scope.ServiceProvider.GetRequiredService<FauxHR.App.Services.PractitionerContextService>();
 await practitionerService.InitializeDefaultPractitionerAsync();
 

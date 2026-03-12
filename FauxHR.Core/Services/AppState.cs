@@ -27,12 +27,16 @@ public class AppState
         {
             Url = "https://nictiz.proxy.interoplab.eu/d/67c22c0aba87c4750a34a962/nictiz/r4/fhir",
             Label = "Conformancelab Nictiz",
+            RequiresProxy = true,
+            HasUntrustedCert = true,
             CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Basic TmljdGl6OlBhc3N3b3Jk" } } // TEST credentials only
         },
         new FhirServerConfig
         {
             Url = "https://pzp-coalitie.proxy.interoplab.eu/r4/fhir",
             Label = "PZP Coalitie (Interoplab)",
+            RequiresProxy = true,
+            HasUntrustedCert = true,
             CustomHeaders = new() { new HeaderItem { Key = "Authorization", Value = "Bearer 27e14882-0370-400b-a6d4-dee94c9fcf10" } } // TEST token only
         }
     };
@@ -40,9 +44,18 @@ public class AppState
     public FhirServerConfig? CurrentServerConfig =>
         AvailableServers.FirstOrDefault(s => s.Url.TrimEnd('/') == CurrentServerUrl.TrimEnd('/'));
 
-    /// <summary>True when the currently selected server has CORS issues and requests must
-    /// be routed through the local /fhir-proxy/ endpoint on the server host.</summary>
-    public bool UseServerProxy => CurrentServerConfig?.RequiresProxy ?? false;
+    /// <summary>True when the server proxy (/fhir-proxy/) was detected as available on startup.</summary>
+    public bool IsServerProxyAvailable { get; private set; } = false;
+
+    public void SetServerProxyAvailable(bool available)
+    {
+        IsServerProxyAvailable = available;
+        NotifyStateChanged();
+    }
+
+    /// <summary>True when the currently selected server requires proxying AND the proxy is running.
+    /// Falls back to direct mode (no proxy) so GitHub Pages can still attempt requests.</summary>
+    public bool UseServerProxy => IsServerProxyAvailable && (CurrentServerConfig?.RequiresProxy ?? false);
 
     /// <summary>Custom headers for the currently selected server.</summary>
     public List<HeaderItem> CurrentServerHeaders => CurrentServerConfig?.CustomHeaders ?? new();
@@ -159,9 +172,14 @@ public class FhirServerConfig
 {
     public string Url { get; set; } = "";
     public string Label { get; set; } = "";
-    /// <summary>When true, requests are routed through the local /fhir-proxy/ endpoint
-    /// to bypass broken CORS headers on the upstream server.</summary>
+    /// <summary>When true, requests are preferably routed through the local /fhir-proxy/ endpoint
+    /// to bypass CORS restrictions and private-CA certificate issues. Falls back to direct mode
+    /// when the proxy is not available (e.g. on GitHub Pages).</summary>
     public bool RequiresProxy { get; set; } = false;
+    /// <summary>When true, the server uses a certificate from a private/internal CA that browsers
+    /// do not trust by default. Users must manually accept the cert in the browser before
+    /// direct requests will work.</summary>
+    public bool HasUntrustedCert { get; set; } = false;
     /// <summary>Per-server custom HTTP headers (e.g. Authorization).</summary>
     public List<HeaderItem> CustomHeaders { get; set; } = new();
 }
