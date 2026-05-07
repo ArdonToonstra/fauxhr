@@ -1,0 +1,473 @@
+@page "/cds-hooks/patient-view"
+@using FauxHR.Core.Services
+@using FauxHR.Modules.CdsHooks.Models
+@using FauxHR.Modules.CdsHooks.Services
+@using Hl7.Fhir.Model
+@using Hl7.Fhir.Serialization
+@using Task = System.Threading.Tasks.Task
+@inject AppState AppState
+@inject CdsHooksPrefetchService PrefetchService
+@implements IDisposable
+
+<PageTitle>CTM - Patient View Hook</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="display-6 fw-bold text-primary mb-1">
+                <i class="bi bi-lightning-charge me-3"></i>Clinical Trial Matching
+            </h2>
+            <p class="lead text-muted mb-0">CDS Hooks <code>patient-view</code> &mdash; USCDI+ CTM Pattern A</p>
+        </div>
+    </div>
+
+    <!-- Patient Record Banner -->
+    <div class="card mb-4 border-primary">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <i class="bi bi-person-circle text-primary" style="font-size: 3rem;"></i>
+                </div>
+                <div class="col">
+                    <h4 class="mb-1">@patientName</h4>
+                    <div class="text-muted d-flex flex-wrap gap-3">
+                        <span><i class="bi bi-calendar me-1"></i>DOB: @patientDob</span>
+                        <span><i class="bi bi-gender-female me-1"></i>@patientGender</span>
+                        <span><i class="bi bi-geo-alt me-1"></i>@patientAddress</span>
+                        <span><i class="bi bi-hash me-1"></i>ID: @patientId</span>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    @if (isLoading)
+                    {
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    }
+                    else if (hookTriggered)
+                    {
+                        <span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Hook Triggered</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Patient Clinical Summary (mock) -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-heart-pulse me-1"></i>Conditions</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-1"><span class="badge bg-danger-subtle text-danger me-1">Active</span>Non-small cell lung cancer (NSCLC)</li>
+                        <li class="mb-1"><span class="badge bg-warning-subtle text-warning me-1">Active</span>Type 2 Diabetes Mellitus</li>
+                        <li><span class="badge bg-secondary-subtle text-secondary me-1">Resolved</span>Hypertension</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-capsule me-1"></i>Medications</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-1">Pembrolizumab 200mg IV q3w</li>
+                        <li class="mb-1">Carboplatin AUC 5 IV</li>
+                        <li>Metformin 1000mg PO BID</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-clipboard2-data me-1"></i>Staging</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-1"><strong>Stage:</strong> IIIB</li>
+                        <li class="mb-1"><strong>TNM:</strong> T3 N2 M0</li>
+                        <li class="mb-1"><strong>Histology:</strong> Adenocarcinoma</li>
+                        <li><strong>ECOG:</strong> 1</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-droplet me-1"></i>Labs (Recent)</h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-1">WBC: 6.2 x10^9/L</li>
+                        <li class="mb-1">Hgb: 12.1 g/dL</li>
+                        <li class="mb-1">Platelets: 210 x10^9/L</li>
+                        <li>Creatinine: 0.9 mg/dL</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hook Status -->
+    @if (isLoading)
+    {
+        <div class="card mb-4">
+            <div class="card-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p class="text-muted mb-0">Gathering prefetch data and invoking <code>patient-view</code> hook...</p>
+                <p class="text-muted small">Querying FHIR server for CTM-relevant data elements</p>
+            </div>
+        </div>
+    }
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger d-flex align-items-start" role="alert">
+            <i class="bi bi-x-circle-fill me-2 mt-1"></i>
+            <div>
+                <strong>Hook invocation failed</strong>
+                <p class="mb-0 mt-1">@errorMessage</p>
+            </div>
+        </div>
+    }
+
+    <!-- Prefetch Results & CDS Cards -->
+    @if (hookTriggered && currentRequest != null)
+    {
+        <div class="row">
+            <!-- Prefetch Summary -->
+            <div class="col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="bi bi-collection me-2"></i>Prefetch Summary</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var kvp in currentRequest.Prefetch)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span class="text-truncate me-2">@kvp.Key</span>
+                                    @if (kvp.Value is Bundle bundle)
+                                    {
+                                        <span class="badge bg-primary rounded-pill">@(bundle.Entry?.Count ?? 0) entries</span>
+                                    }
+                                    else if (kvp.Value is Patient)
+                                    {
+                                        <span class="badge bg-success rounded-pill">Found</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary rounded-pill">Empty</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CDS Response Cards -->
+            <div class="col-lg-8 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>CDS Response Cards</h5>
+                        <span class="badge bg-success">@(cdsResponse?.Cards.Count ?? 0) card(s) returned</span>
+                    </div>
+                    <div class="card-body">
+                        @if (cdsResponse != null && cdsResponse.Cards.Any())
+                        {
+                            @foreach (var card in cdsResponse.Cards)
+                            {
+                                <div class="alert @GetCardAlertClass(card.Indicator) d-flex align-items-start mb-3">
+                                    <i class="@GetCardIcon(card.Indicator) me-2 mt-1 fs-5"></i>
+                                    <div class="flex-grow-1">
+                                        <strong>@card.Summary</strong>
+                                        @if (!string.IsNullOrEmpty(card.Detail))
+                                        {
+                                            <p class="mb-1 mt-1 small">@card.Detail</p>
+                                        }
+                                        @if (card.Source != null)
+                                        {
+                                            <div class="mt-1">
+                                                <small class="text-muted"><i class="bi bi-building me-1"></i>Source: @card.Source.Label</small>
+                                            </div>
+                                        }
+                                        @if (card.Links != null && card.Links.Any())
+                                        {
+                                            <div class="mt-2">
+                                                @foreach (var link in card.Links)
+                                                {
+                                                    <a href="@link.Url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+                                                        <i class="bi bi-box-arrow-up-right me-1"></i>@link.Label
+                                                    </a>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Timeline -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>CDS Hooks Workflow</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="badge bg-success p-2"><i class="bi bi-1-circle me-1"></i>Patient record opened</span>
+                    <i class="bi bi-arrow-right text-muted"></i>
+                    <span class="badge bg-success p-2"><i class="bi bi-2-circle me-1"></i>patient-view hook fired</span>
+                    <i class="bi bi-arrow-right text-muted"></i>
+                    <span class="badge bg-success p-2"><i class="bi bi-3-circle me-1"></i>Prefetch queries executed</span>
+                    <i class="bi bi-arrow-right text-muted"></i>
+                    <span class="badge bg-success p-2"><i class="bi bi-4-circle me-1"></i>CDS Service invoked</span>
+                    <i class="bi bi-arrow-right text-muted"></i>
+                    <span class="badge bg-success p-2"><i class="bi bi-5-circle me-1"></i>Cards rendered</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Request JSON -->
+        <div class="card mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-code-slash me-2"></i>CDS Hooks Request (JSON)</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleJson">
+                    <i class="bi @(showJson ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
+                    @(showJson ? "Hide" : "Show")
+                </button>
+            </div>
+            @if (showJson)
+            {
+                <div class="card-body">
+                    <pre class="bg-dark text-light p-3 rounded" style="max-height: 600px; overflow-y: auto; font-size: 0.8rem;">@requestJson</pre>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // Mock patient data
+    private string patientId = "pat-nsclc-001";
+    private string patientName = "Maria Johnson";
+    private string patientDob = "1962-03-15";
+    private string patientGender = "Female";
+    private string patientAddress = "Boston, MA 02115";
+
+    private bool isLoading;
+    private bool hookTriggered;
+    private bool showJson;
+    private string? errorMessage;
+    private string? requestJson;
+    private CdsHooksRequest? currentRequest;
+    private CdsHooksResponse? cdsResponse;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += OnAppStateChanged;
+        await TriggerPatientViewHook();
+    }
+
+    private async void OnAppStateChanged()
+    {
+        // If a real patient is selected, use their data
+        if (AppState.CurrentPatient != null)
+        {
+            patientId = AppState.CurrentPatient.Id ?? patientId;
+            var name = AppState.CurrentPatient.Name?.FirstOrDefault();
+            if (name != null)
+            {
+                var given = string.Join(" ", name.Given ?? Enumerable.Empty<string>());
+                patientName = $"{given} {name.Family}".Trim();
+            }
+            patientDob = AppState.CurrentPatient.BirthDate ?? patientDob;
+            patientGender = AppState.CurrentPatient.Gender?.ToString() ?? patientGender;
+            var addr = AppState.CurrentPatient.Address?.FirstOrDefault();
+            if (addr != null)
+                patientAddress = $"{addr.City ?? ""} {addr.State ?? ""} {addr.PostalCode ?? ""}".Trim();
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task TriggerPatientViewHook()
+    {
+        isLoading = true;
+        hookTriggered = false;
+        errorMessage = null;
+        currentRequest = null;
+        cdsResponse = null;
+        requestJson = null;
+        StateHasChanged();
+
+        // Simulate a small network delay for the hook invocation
+        await Task.Delay(800);
+
+        try
+        {
+            // Try real FHIR queries if a patient is selected
+            if (AppState.CurrentPatient != null)
+            {
+                var userId = AppState.CurrentPractitioner != null
+                    ? $"Practitioner/{AppState.CurrentPractitioner.Id}"
+                    : "Practitioner/unknown";
+
+                currentRequest = await PrefetchService.BuildPatientViewRequestAsync(
+                    AppState.CurrentPatient.Id!, userId);
+                currentRequest.FhirServer = AppState.CurrentServerUrl;
+            }
+            else
+            {
+                // Use mock prefetch data
+                currentRequest = BuildMockRequest();
+            }
+
+            requestJson = PrefetchService.SerializeRequest(currentRequest);
+
+            // Simulate calling the CDS Service and getting back cards
+            cdsResponse = BuildMockCdsResponse();
+
+            hookTriggered = true;
+        }
+        catch (Exception ex)
+        {
+            // If real queries fail, fall back to mock
+            currentRequest = BuildMockRequest();
+            requestJson = PrefetchService.SerializeRequest(currentRequest);
+            cdsResponse = BuildMockCdsResponse();
+            hookTriggered = true;
+            errorMessage = $"FHIR query failed ({ex.Message}). Displaying mock data.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private CdsHooksRequest BuildMockRequest()
+    {
+        var patient = new Patient
+        {
+            Id = patientId,
+            BirthDate = patientDob,
+            Gender = AdministrativeGender.Female,
+            Name = { new HumanName { Family = "Johnson", Given = new[] { "Maria" } } },
+            Address = { new Address { City = "Boston", State = "MA", PostalCode = "02115" } }
+        };
+
+        var request = new CdsHooksRequest
+        {
+            Hook = "patient-view",
+            HookInstance = Guid.NewGuid().ToString(),
+            FhirServer = AppState.CurrentServerUrl,
+            Context = new CdsContext
+            {
+                PatientId = patientId,
+                UserId = "Practitioner/pract-onc-001"
+            }
+        };
+
+        request.Prefetch["patient"] = patient;
+        request.Prefetch["conditions-problem-list"] = CreateMockBundle(3);
+        request.Prefetch["conditions-sites"] = CreateMockBundle(2);
+        request.Prefetch["observations-performance"] = CreateMockBundle(1);
+        request.Prefetch["observations-smoking"] = CreateMockBundle(1);
+        request.Prefetch["observations-laboratory"] = CreateMockBundle(8);
+        request.Prefetch["observations-pregnancy-status"] = CreateMockBundle(0);
+        request.Prefetch["observations-comorbidities"] = CreateMockBundle(2);
+        request.Prefetch["observations-stage"] = CreateMockBundle(1);
+        request.Prefetch["observations-histology"] = CreateMockBundle(1);
+        request.Prefetch["medication-administrations"] = CreateMockBundle(3);
+        request.Prefetch["procedures"] = CreateMockBundle(2);
+        request.Prefetch["procedures-radiotherapy"] = CreateMockBundle(0);
+
+        return request;
+    }
+
+    private Bundle CreateMockBundle(int entryCount)
+    {
+        var bundle = new Bundle { Type = Bundle.BundleType.Searchset, Total = entryCount };
+        for (int i = 0; i < entryCount; i++)
+        {
+            bundle.Entry.Add(new Bundle.EntryComponent
+            {
+                Resource = new Basic { Id = $"mock-{Guid.NewGuid():N}" }
+            });
+        }
+        return bundle;
+    }
+
+    private CdsHooksResponse BuildMockCdsResponse()
+    {
+        return new CdsHooksResponse
+        {
+            Cards = new List<CdsCard>
+            {
+                new CdsCard
+                {
+                    Summary = "Potential match: KEYNOTE-789 — Pembrolizumab + Chemotherapy in NSCLC Stage IIIB",
+                    Detail = "Patient meets preliminary eligibility: confirmed NSCLC adenocarcinoma, Stage IIIB (T3N2M0), ECOG 1, adequate organ function. Age 64, no active brain metastases. Consider full eligibility screening.",
+                    Indicator = "info",
+                    Source = new CdsSource
+                    {
+                        Label = "National Cancer Trials Registry",
+                        Url = "https://clinicaltrials.gov"
+                    },
+                    Links = new List<CdsLink>
+                    {
+                        new CdsLink { Label = "View Trial Details", Url = "https://clinicaltrials.gov/study/NCT03515837", Type = "absolute" },
+                        new CdsLink { Label = "Check Eligibility", Url = "https://example.org/ctm/eligibility/KEYNOTE-789", Type = "absolute" }
+                    }
+                },
+                new CdsCard
+                {
+                    Summary = "Potential match: CheckMate-227 — Nivolumab + Ipilimumab First-Line NSCLC",
+                    Detail = "Patient may be eligible based on: Stage III/IV NSCLC, no prior immunotherapy contraindication, ECOG ≤1. Note: Patient is currently on Pembrolizumab — verify washout period requirements.",
+                    Indicator = "info",
+                    Source = new CdsSource
+                    {
+                        Label = "National Cancer Trials Registry",
+                        Url = "https://clinicaltrials.gov"
+                    },
+                    Links = new List<CdsLink>
+                    {
+                        new CdsLink { Label = "View Trial Details", Url = "https://clinicaltrials.gov/study/NCT02477826", Type = "absolute" }
+                    }
+                },
+                new CdsCard
+                {
+                    Summary = "Insufficient data: Smoking history details needed for 3 additional trials",
+                    Detail = "The patient's smoking status observation is present but detailed pack-year history is not available. Providing quantitative smoking history may unlock eligibility for additional immunotherapy combination trials.",
+                    Indicator = "warning",
+                    Source = new CdsSource { Label = "CTM Evaluation Engine" }
+                }
+            }
+        };
+    }
+
+    private string GetCardAlertClass(string indicator) => indicator switch
+    {
+        "critical" => "alert-danger",
+        "warning" => "alert-warning",
+        _ => "alert-info"
+    };
+
+    private string GetCardIcon(string indicator) => indicator switch
+    {
+        "critical" => "bi bi-exclamation-octagon-fill",
+        "warning" => "bi bi-exclamation-triangle-fill",
+        _ => "bi bi-info-circle-fill"
+    };
+
+    private void ToggleJson() => showJson = !showJson;
+
+    public void Dispose()
+    {
+        AppState.OnChange -= OnAppStateChanged;
+    }
+}

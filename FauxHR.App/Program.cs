@@ -32,6 +32,10 @@ builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.CrmiArtifactSer
 builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.TerminologyService>();
 builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.ValueSetBindingService>();
 
+// CDS Hooks Module (CTM Pattern A)
+builder.Services.AddScoped<FauxHR.Core.Interfaces.IIGModule, FauxHR.Modules.CdsHooks.CdsHooksModule>();
+builder.Services.AddScoped<FauxHR.Modules.CdsHooks.Services.CdsHooksPrefetchService>();
+
 var host = builder.Build();
 
 var scope = host.Services.CreateScope();
