@@ -1,0 +1,28 @@
+{
+  "bundles": [
+    {
+      "id": "acp-shared-resources",
+      "name": "Shared Resources",
+      "description": "Practitioner, PractitionerRole and Device resources shared across ACP patients (8 resources)",
+      "module": "acp",
+      "moduleName": "Exit Strategy (ACP)",
+      "file": "seed-data/acp/SharedResourcesBundle.json"
+    },
+    {
+      "id": "acp-patient-hendrik-hartman",
+      "name": "Hendrik Hartman",
+      "description": "Patient with full ACP document set — Consent, Goals, Observations, Procedures and more (23 resources)",
+      "module": "acp",
+      "moduleName": "Exit Strategy (ACP)",
+      "file": "seed-data/acp/ACP-Patient-HendrikHartman-Pat1-PatientBundle.json"
+    },
+    {
+      "id": "acp-patient-samira-van-der-sluijs",
+      "name": "Samira van der Sluijs",
+      "description": "Patient with full ACP document set — Consent, Goals, Observations, Procedures and more (25 resources)",
+      "module": "acp",
+      "moduleName": "Exit Strategy (ACP)",
+      "file": "seed-data/acp/ACP-Patient-SamiraVanDerSluijs-Pat2-PatientBundle.json"
+    }
+  ]
+}

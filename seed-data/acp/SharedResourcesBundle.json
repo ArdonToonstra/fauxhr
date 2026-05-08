@@ -1,0 +1,341 @@
+{
+  "resourceType": "Bundle",
+  "id": "SharedResourcesBundle",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/StructureDefinition/Bundle"
+    ],
+    "lastUpdated": "2026-05-08T10:56:55.788590Z",
+    "tag": [
+      {
+        "system": "https://api.iknl.nl/docs/pzp/r4/CodeSystem/bundle-type",
+        "code": "shared-data",
+        "display": "Shared Resources Bundle"
+      }
+    ]
+  },
+  "identifier": {
+    "system": "https://api.iknl.nl/docs/pzp/r4/NamingSystem/shared-bundle",
+    "value": "SharedResourcesBundle"
+  },
+  "type": "transaction",
+  "timestamp": "2026-05-08T10:56:55.788590Z",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:21b9efa6-b6ed-49ec-ae37-8628fa9cc78b",
+      "resource": {
+        "resourceType": "Device",
+        "id": "ACP-MedicalDeviceProduct-ICD-Pat1",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-MedicalDevice.Product-ICD"
+          ]
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "code": "RI",
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "display": "Resource identifier"
+                }
+              ]
+            },
+            "system": "https://acme.com/fhir/NamingSystem/resource-business-identifier",
+            "value": "00e66024-84a5-44f8-84e9-f8ac339bfd5a"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "code": "72506001",
+              "system": "http://snomed.info/sct",
+              "display": "implanteerbare cardioverter-defibrillator"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Device/ACP-MedicalDeviceProduct-ICD-Pat1"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:ec97c4c2-9773-433f-9738-2002bfc4bc6b",
+      "resource": {
+        "resourceType": "Device",
+        "id": "ACP-MedicalDeviceProduct-ICD-Pat2",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-MedicalDevice.Product-ICD"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://www.gs1.org/gtin",
+            "value": "8700000000001"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "code": "72506001",
+              "system": "http://snomed.info/sct",
+              "display": "implanteerbare cardioverter-defibrillator"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Device/ACP-MedicalDeviceProduct-ICD-Pat2"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:dfe2d73e-93a4-4a19-9c70-8dbc6498a63a",
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "ACP-HealthProfessional-Practitioner-DesireeWolters-Pat2",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-Practitioner"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://fhir.nl/fhir/NamingSystem/agb-z",
+            "value": "000003333"
+          }
+        ],
+        "name": [
+          {
+            "given": [
+              "Desiree"
+            ],
+            "_given": [
+              {
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/StructureDefinition/iso21090-EN-qualifier",
+                    "valueCode": "BR"
+                  }
+                ]
+              }
+            ],
+            "use": "official",
+            "text": "Desiree Wolters",
+            "family": "Wolters",
+            "_family": {
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/StructureDefinition/humanname-own-name",
+                  "valueString": "Wolters"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner/ACP-HealthProfessional-Practitioner-DesireeWolters-Pat2"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:265a75e6-ed01-4f29-bf5e-67098fbd018a",
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "ACP-HealthProfessional-Practitioner-DrVanHuissen-Pat1",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-Practitioner"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://fhir.nl/fhir/NamingSystem/agb-z",
+            "value": "01999999"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "text": "van Huissen",
+            "family": "van Huissen",
+            "_family": {
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/StructureDefinition/humanname-own-prefix",
+                  "valueString": "van"
+                },
+                {
+                  "url": "http://hl7.org/fhir/StructureDefinition/humanname-own-name",
+                  "valueString": "Huissen"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner/ACP-HealthProfessional-Practitioner-DrVanHuissen-Pat1"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:db4cf606-78b3-4644-86bd-08241afef2ed",
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "ACP-HealthProfessional-Practitioner-Santos-Pat2",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-Practitioner"
+          ]
+        },
+        "name": [
+          {
+            "use": "official",
+            "text": "Richard Santos"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner/ACP-HealthProfessional-Practitioner-Santos-Pat2"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:3115ee9c-d3e1-4048-8eaa-34b84773f3da",
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "ACP-HealthProfessional-PractitionerRole-DesireeWolters-Pat2",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-PractitionerRole"
+          ]
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "code": "RI",
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "display": "Resource identifier"
+                }
+              ]
+            },
+            "system": "https://acme.com/fhir/NamingSystem/resource-business-identifier",
+            "value": "c69d5830-1304-4a4e-bb37-49043282efa3"
+          }
+        ],
+        "practitioner": {
+          "reference": "Practitioner/ACP-HealthProfessional-Practitioner-DesireeWolters-Pat2",
+          "display": "Healthcare professional (person), Desiree Wolters",
+          "type": "Practitioner"
+        },
+        "specialty": [
+          {
+            "coding": [
+              {
+                "version": "2020-10-23T00:00:00",
+                "code": "0100",
+                "system": "urn:oid:2.16.840.1.113883.2.4.6.7",
+                "display": "Huisartsen, niet nader gespecificeerd"
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "PractitionerRole/ACP-HealthProfessional-PractitionerRole-DesireeWolters-Pat2"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:0544da1b-3d92-40b0-b226-a0eecb6545f9",
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "ACP-HealthProfessional-PractitionerRole-DrVanHuissen-Pat1",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-PractitionerRole"
+          ]
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "code": "RI",
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "display": "Resource identifier"
+                }
+              ]
+            },
+            "system": "https://acme.com/fhir/NamingSystem/resource-business-identifier",
+            "value": "ff6d8146-1014-4ef4-9645-e8207364c942"
+          }
+        ],
+        "practitioner": {
+          "reference": "Practitioner/ACP-HealthProfessional-Practitioner-DrVanHuissen-Pat1",
+          "display": "Healthcare professional (person), van Huissen",
+          "type": "Practitioner"
+        },
+        "specialty": [
+          {
+            "coding": [
+              {
+                "version": "2020-10-23T00:00:00",
+                "code": "0100",
+                "system": "urn:oid:2.16.840.1.113883.2.4.6.7",
+                "display": "Huisartsen, niet nader gespecificeerd"
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "PractitionerRole/ACP-HealthProfessional-PractitionerRole-DrVanHuissen-Pat1"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:cdc0e47c-14d5-4dd9-81e7-46cba2010fcd",
+      "resource": {
+        "resourceType": "PractitionerRole",
+        "id": "ACP-HealthProfessional-PractitionerRole-Santos-Pat2",
+        "meta": {
+          "profile": [
+            "https://api.iknl.nl/docs/pzp/r4/StructureDefinition/ACP-HealthProfessional-PractitionerRole"
+          ]
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "code": "RI",
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "display": "Resource identifier"
+                }
+              ]
+            },
+            "system": "https://acme.com/fhir/NamingSystem/resource-business-identifier",
+            "value": "e38a934b-2f66-4ae4-954d-f1aee1d8f378"
+          }
+        ],
+        "practitioner": {
+          "reference": "Practitioner/ACP-HealthProfessional-Practitioner-Santos-Pat2",
+          "display": "Healthcare professional (person), Santos",
+          "type": "Practitioner"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "PractitionerRole/ACP-HealthProfessional-PractitionerRole-Santos-Pat2"
+      }
+    }
+  ]
+}
