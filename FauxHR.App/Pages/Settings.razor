@@ -1,8 +1,14 @@
 @page "/settings"
 @using FauxHR.Core.Services
 @using FauxHR.Core.Interfaces
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using Hl7.Fhir.Serialization
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject IFhirService FhirService
+@inject HttpClient Http
 @implements IDisposable
 
 <PageTitle>FauxHR - Settings</PageTitle>
@@ -300,6 +306,91 @@
             </div>
         </div>
     </div>
+
+    <!-- Seed Data -->
+    <div class="row mt-4 mb-4">
+        <div class="col-12">
+            <h4 class="fw-light mb-3"><i class="bi bi-database-up me-2"></i>Seed Data</h4>
+            <p class="text-muted small mb-3">
+                POST transaction bundles to the active server (<strong>@AppState.CurrentServerConfig?.Label</strong>).
+                Add bundles by committing JSON files and updating
+                <code>wwwroot/seed-data/index.json</code>.
+            </p>
+
+            @if (manifestLoading)
+            {
+                <div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>Loading manifest...</div>
+            }
+            else if (manifestError != null)
+            {
+                <div class="alert alert-danger small py-2">
+                    <i class="bi bi-exclamation-circle me-1"></i>@manifestError
+                </div>
+            }
+            else if (!seedBundles.Any())
+            {
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-muted small p-4">
+                        <i class="bi bi-inbox me-2"></i>No bundles in <code>wwwroot/seed-data/index.json</code> yet.
+                        See <code>wwwroot/seed-data/README.md</code> for instructions.
+                    </div>
+                </div>
+            }
+            else
+            {
+                @foreach (var group in seedBundles.GroupBy(b => b.ModuleName))
+                {
+                    <h6 class="text-uppercase text-muted small fw-bold mt-3 mb-2">@group.Key</h6>
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="list-group list-group-flush rounded">
+                            @foreach (var bundle in group)
+                            {
+                                var result = bundleResults.TryGetValue(bundle.Id, out var r) ? r : null;
+                                var posting = postingIds.Contains(bundle.Id);
+                                <div class="list-group-item d-flex align-items-center gap-3 py-3">
+                                    <div class="flex-grow-1">
+                                        <div class="fw-semibold small">@bundle.Name</div>
+                                        @if (!string.IsNullOrEmpty(bundle.Description))
+                                        {
+                                            <div class="text-muted" style="font-size: 0.8rem;">@bundle.Description</div>
+                                        }
+                                    </div>
+                                    @if (result != null)
+                                    {
+                                        @if (result.IsSuccess)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                                <i class="bi bi-check-lg me-1"></i>@result.Message
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="@result.Message">
+                                                <i class="bi bi-x-lg me-1"></i>Error
+                                            </span>
+                                        }
+                                    }
+                                    <button class="btn btn-sm btn-outline-primary flex-shrink-0"
+                                            @onclick="() => PostBundle(bundle)"
+                                            disabled="@posting">
+                                        @if (posting)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-cloud-upload me-1"></i>
+                                        }
+                                        POST
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
 </div>
 
 @code {
@@ -322,12 +413,13 @@
     private List<HeaderItem> editingHeaders = new();
     private string? headerSavedForUrl;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         enableReferences = AppState.EnableReferenceResolution;
         resolutionDepth = AppState.ReferenceResolutionDepth;
         conformanceMode = AppState.ConformanceTestingMode;
         AppState.OnChange += StateHasChanged;
+        await LoadManifest();
     }
 
     public void Dispose()
@@ -415,5 +507,89 @@
         {
             isLoading = false;
         }
+    }
+
+    // ── Seed Data ────────────────────────────────────────────────────────────
+
+    private bool manifestLoading = true;
+    private string? manifestError;
+    private List<SeedBundleInfo> seedBundles = new();
+    private Dictionary<string, BundlePostResult> bundleResults = new();
+    private HashSet<string> postingIds = new();
+
+    private async Task LoadManifest()
+    {
+        manifestLoading = true;
+        manifestError = null;
+        try
+        {
+            var manifest = await Http.GetFromJsonAsync<SeedManifest>("seed-data/index.json");
+            seedBundles = manifest?.Bundles ?? new();
+        }
+        catch (Exception ex)
+        {
+            manifestError = $"Could not load seed-data/index.json: {ex.Message}";
+        }
+        finally { manifestLoading = false; }
+    }
+
+    private async Task PostBundle(SeedBundleInfo info)
+    {
+        postingIds.Add(info.Id);
+        bundleResults.Remove(info.Id);
+        StateHasChanged();
+        try
+        {
+            var json = await Http.GetStringAsync(info.File);
+            var bundle = new FhirJsonDeserializer().Deserialize<Bundle>(json);
+            var response = await FhirService.TransactionAsync(bundle);
+
+            var entries = response.Entry ?? new();
+            var succeeded = entries.Count(e =>
+                e.Response?.Status != null &&
+                e.Response.Status.StartsWith("2"));
+            var failed = entries.Count - succeeded;
+
+            bundleResults[info.Id] = failed == 0
+                ? new BundlePostResult { IsSuccess = true, Message = $"{succeeded} resource{(succeeded == 1 ? "" : "s")}" }
+                : new BundlePostResult { IsSuccess = false, Message = $"{failed} of {entries.Count} failed" };
+        }
+        catch (Exception ex)
+        {
+            bundleResults[info.Id] = new BundlePostResult { IsSuccess = false, Message = ex.Message };
+        }
+        finally
+        {
+            postingIds.Remove(info.Id);
+            StateHasChanged();
+        }
+    }
+
+    private class SeedManifest
+    {
+        [JsonPropertyName("bundles")]
+        public List<SeedBundleInfo> Bundles { get; set; } = new();
+    }
+
+    private class SeedBundleInfo
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = "";
+        [JsonPropertyName("module")]
+        public string Module { get; set; } = "";
+        [JsonPropertyName("moduleName")]
+        public string ModuleName { get; set; } = "";
+        [JsonPropertyName("file")]
+        public string File { get; set; } = "";
+    }
+
+    private class BundlePostResult
+    {
+        public bool IsSuccess { get; init; }
+        public string Message { get; init; } = "";
     }
 }
