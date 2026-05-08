@@ -1,0 +1,194 @@
+@page "/patient"
+@using FauxHR.Core.Services
+@using Hl7.Fhir.Model
+@inject AppState AppState
+@inject NavigationManager NavManager
+@implements IDisposable
+
+<PageTitle>FauxHR - Patient Record</PageTitle>
+
+<div class="container-fluid py-4">
+
+    @if (CurrentPatient == null)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-warning d-flex align-items-center gap-3">
+                    <i class="bi bi-person-exclamation fs-4"></i>
+                    <div>
+                        <strong>No patient selected.</strong>
+                        <a href="patient/switch" class="alert-link ms-1">Select a patient</a> to view their record.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        var p = CurrentPatient;
+
+        <!-- Patient Banner -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center gap-4">
+                            <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 72px; height: 72px;">
+                                <i class="bi bi-person-fill" style="font-size: 2rem;"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h2 class="fw-semibold mb-1">@GetPatientName(p)</h2>
+                                <div class="d-flex flex-wrap gap-3 text-muted small">
+                                    <span><i class="bi bi-fingerprint me-1"></i>@p.Id</span>
+                                    @if (!string.IsNullOrEmpty(p.BirthDate))
+                                    {
+                                        <span><i class="bi bi-calendar-event me-1"></i>@p.BirthDate</span>
+                                    }
+                                    @if (p.Gender.HasValue)
+                                    {
+                                        <span class="text-capitalize"><i class="bi bi-gender-ambiguous me-1"></i>@p.Gender.Value.ToString()</span>
+                                    }
+                                </div>
+                            </div>
+                            <div>
+                                <a href="patient/switch" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-arrow-left-right me-1"></i> Switch Patient
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+
+            <!-- Identifiers -->
+            @if (p.Identifier != null && p.Identifier.Any())
+            {
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3">
+                                <i class="bi bi-card-text me-2"></i>Identifiers
+                            </h6>
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var id in p.Identifier)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center small">
+                                        <span class="text-muted">@(id.System ?? "—")</span>
+                                        <span class="badge bg-light text-dark border font-monospace">@id.Value</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Contact Details -->
+            @{
+                var phones = p.Telecom?.Where(t => t.System == ContactPoint.ContactPointSystem.Phone).ToList();
+                var emails = p.Telecom?.Where(t => t.System == ContactPoint.ContactPointSystem.Email).ToList();
+            }
+            @if ((phones != null && phones.Any()) || (emails != null && emails.Any()))
+            {
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3">
+                                <i class="bi bi-telephone me-2"></i>Contact
+                            </h6>
+                            <div class="d-flex flex-column gap-2 small">
+                                @if (phones != null)
+                                {
+                                    @foreach (var t in phones)
+                                    {
+                                        <div><i class="bi bi-telephone me-2 text-muted"></i>@t.Value</div>
+                                    }
+                                }
+                                @if (emails != null)
+                                {
+                                    @foreach (var t in emails)
+                                    {
+                                        <div><i class="bi bi-envelope me-2 text-muted"></i>@t.Value</div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Address -->
+            @if (p.Address != null && p.Address.Any())
+            {
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3">
+                                <i class="bi bi-house me-2"></i>Address
+                            </h6>
+                            @foreach (var addr in p.Address)
+                            {
+                                <address class="small mb-0">
+                                    @if (addr.Line != null)
+                                    {
+                                        @foreach (var line in addr.Line)
+                                        {
+                                            <div>@line</div>
+                                        }
+                                    }
+                                    @if (!string.IsNullOrEmpty(addr.City) || !string.IsNullOrEmpty(addr.PostalCode))
+                                    {
+                                        <div>@addr.PostalCode @addr.City</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(addr.Country))
+                                    {
+                                        <div>@addr.Country</div>
+                                    }
+                                </address>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+
+        <!-- CDS Hooks Cards placeholder -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4 class="fw-light mb-3"><i class="bi bi-card-checklist me-2"></i>Clinical Decision Support</h4>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-muted small p-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        CDS Hooks cards for this patient will appear here. Open a component below to trigger hooks.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private Hl7.Fhir.Model.Patient? CurrentPatient => AppState.CurrentPatient;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+
+    private string GetPatientName(Hl7.Fhir.Model.Patient p)
+    {
+        if (p.Name == null || !p.Name.Any()) return "Unknown";
+        var name = p.Name.First();
+        return $"{name.Given.FirstOrDefault()} {name.Family}".Trim();
+    }
+}

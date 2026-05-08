@@ -4,31 +4,45 @@
 @inject NavigationManager NavManager
 @implements IDisposable
 
-<div class="patient-status cursor-pointer" @onclick="GoToHome" title="@(CurrentPatient != null ? "Switch Patient" : "Select Patient")">
-    @if (CurrentPatient != null)
-    {
-        <div class="d-flex align-items-center gap-2 text-primary fade-in">
-            <div class="text-end lh-1">
-                <div class="fw-bold small">@GetPatientName(CurrentPatient)</div>
-                <div class="text-xs text-muted">@CurrentPatient.Id</div>
+<div class="dropdown">
+    <div class="patient-status cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false">
+        @if (CurrentPatient != null)
+        {
+            <div class="d-flex align-items-center gap-2 text-primary fade-in">
+                <div class="text-end lh-1">
+                    <div class="fw-bold small">@GetPatientName(CurrentPatient)</div>
+                    <div class="text-xs text-muted">@CurrentPatient.Id</div>
+                </div>
+                <div class="status-icon bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-person-fill fs-5"></i>
+                </div>
             </div>
-            <div class="status-icon bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <i class="bi bi-person-fill fs-5"></i>
+        }
+        else
+        {
+            <div class="d-flex align-items-center gap-2 text-secondary fade-in">
+                <div class="text-end lh-1 d-none d-sm-block">
+                    <div class="fw-bold small">No Patient</div>
+                    <div class="text-xs text-muted">Select Context</div>
+                </div>
+                <div class="status-icon bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="bi bi-person-exclamation fs-5"></i>
+                </div>
             </div>
-        </div>
-    }
-    else
-    {
-        <div class="d-flex align-items-center gap-2 text-secondary fade-in">
-            <div class="text-end lh-1 d-none d-sm-block">
-                <div class="fw-bold small">No Patient</div>
-                <div class="text-xs text-muted">Select Context</div>
-            </div>
-            <div class="status-icon bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <i class="bi bi-person-exclamation fs-5"></i>
-            </div>
-        </div>
-    }
+        }
+    </div>
+    <div class="dropdown-menu dropdown-menu-end shadow-sm">
+        @if (CurrentPatient != null)
+        {
+            <a class="dropdown-item" href="patient">
+                <i class="bi bi-person-lines-fill me-2"></i> Patient Record
+            </a>
+            <hr class="dropdown-divider" />
+        }
+        <a class="dropdown-item" href="patient/switch">
+            <i class="bi bi-arrow-left-right me-2"></i> Switch Patient
+        </a>
+    </div>
 </div>
 
 @code {
@@ -42,11 +56,6 @@
     public void Dispose()
     {
         AppState.OnChange -= StateHasChanged;
-    }
-
-    private void GoToHome()
-    {
-        NavManager.NavigateTo("");
     }
 
     private string GetPatientName(Patient p)

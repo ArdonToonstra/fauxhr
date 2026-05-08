@@ -2,10 +2,8 @@
 @using FauxHR.Core.Interfaces
 @using FauxHR.Core.Services
 @using Hl7.Fhir.Model
-@using Task = System.Threading.Tasks.Task
 @inject IEnumerable<IIGModule> Modules
 @inject NavigationManager NavManager
-@inject IFhirService FhirService
 @inject AppState AppState
 @implements IDisposable
 
@@ -13,238 +11,33 @@
 
 <div class="container-fluid py-4">
 
-    <!-- Patient Selection Wizard -->
+    <!-- About FauxHR -->
     <div class="row mb-5">
         <div class="col-12">
-            <h2 class="fw-light mb-3">Patient Context</h2>
+            <h2 class="fw-light mb-3">What is FauxHR?</h2>
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
-                    <div class="row g-4">
-                        <!-- Search by ID -->
-                        <div class="col-md-4 border-end-md">
-                            <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-person-badge me-2"></i>Search by ID</h6>
-                            <div class="input-group">
-                                <input @bind="searchId" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "ID"))" type="text" class="form-control" placeholder="e.g. pat-123" />
-                                <button class="btn btn-primary" @onclick="SearchById" disabled="@isSearching">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                            <div class="form-text">Directly load a patient resource by logical ID.</div>
+                    <div class="row g-4 align-items-center">
+                        <div class="col-md-1 text-center">
+                            <i class="bi bi-journal-medical display-4 text-primary"></i>
                         </div>
-
-                        <!-- Search by Identifier -->
-                         <div class="col-md-4 border-end-md">
-                            <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-card-text me-2"></i>Search by Identifier</h6>
-                             <div class="input-group mb-2">
-                                <select class="form-select form-select-sm" @bind="selectedSystem">
-                                    <option value="http://fhir.nl/fhir/NamingSystem/bsn">BSN</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                            @if (selectedSystem == "other")
-                            {
-                                <div class="input-group mb-2">
-                                    <input @bind="customSystem" class="form-control form-control-sm" placeholder="Enter System URL" />
-                                </div>
-                            }
-                            <div class="input-group">
-                                <input @bind="searchIdentifier" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "IDENTIFIER"))" type="text" class="form-control" placeholder="Value (e.g. 999911120)" />
-                                <button class="btn btn-primary" @onclick="SearchByIdentifier" disabled="@isSearching">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                             <div class="form-text">Find by business identifier (e.g. BSN).</div>
-                        </div>
-
-                        <!-- Search by Name -->
-                        <div class="col-md-4">
-                             <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-person me-2"></i>Search by Name</h6>
-                            <div class="input-group">
-                                <input @bind="searchName" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "NAME"))" type="text" class="form-control" placeholder="e.g. Janus" />
-                                <button class="btn btn-primary" @onclick="SearchByName" disabled="@isSearching">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                            <div class="form-text">Search by family or given name (contains).</div>
+                        <div class="col-md-11">
+                            <h5 class="fw-semibold mb-2">A fake EHR for testing FHIR Implementation Guides</h5>
+                            <p class="text-muted mb-2">
+                                FauxHR is a lightweight, simulated electronic health record designed to validate
+                                <strong>FHIR Implementation Guides (IGs)</strong> by actually implementing them.
+                                Rather than testing conformance in isolation, FauxHR gives you a realistic EHR
+                                context — a patient, a practitioner, a FHIR server — so you can exercise each
+                                IG's workflows end-to-end.
+                            </p>
+                            <p class="text-muted mb-0">
+                                Each <strong>component</strong> below implements one IG. Select a patient via the
+                                top-right corner, then open a component to start testing.
+                            </p>
                         </div>
                     </div>
-
-                    <!-- Search Feedback -->
-                    @if (isSearching)
-                    {
-                        <div class="alert alert-info mt-3 mb-0 py-2">
-                            <div class="spinner-border spinner-border-sm me-2"></div> Searching...
-                        </div>
-                    }
-                    else if (!string.IsNullOrEmpty(feedbackMessage))
-                    {
-                        <div class="alert @feedbackClass mt-3 mb-0 py-2 d-flex justify-content-between align-items-center">
-                            <span>@feedbackMessage</span>
-                            @if(foundPatients != null && foundPatients.Any())
-                            {
-                                <span class="small text-muted">Found @foundPatients.Count result(s)</span>
-                            }
-                        </div>
-                    }
-
-                    <!-- Search Results (Tiles) -->
-                    @if (foundPatients != null && foundPatients.Any())
-                    {
-                         <div class="row g-3 mt-3">
-                            @foreach(var p in foundPatients)
-                            {
-                                <div class="col-sm-6 col-lg-4">
-                                    <div class="card h-100 shadow-sm patient-card cursor-pointer" @onclick="() => SelectPatient(p)">
-                                        <div class="card-body">
-                                            <div class="d-flex align-items-center gap-3 mb-3">
-                                                 <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
-                                                    <i class="bi bi-person-fill fs-4"></i>
-                                                </div>
-                                                <div>
-                                                     <h6 class="card-title fw-bold mb-0">@GetPatientName(p)</h6>
-                                                     <span class="badge bg-light text-secondary border">@p.Id</span>
-                                                </div>
-                                            </div>
-
-                                            <div class="d-flex justify-content-between text-muted small">
-                                                <span><i class="bi bi-calendar-event me-1"></i> @(p.BirthDate ?? "Unknown Birthdate")</span>
-                                                <span class="text-capitalize"><i class="bi bi-gender-ambiguous me-1"></i> @(p.Gender?.ToString() ?? "Unknown Gender")</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    }
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Advanced Panel -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <button class="btn btn-sm btn-outline-secondary mb-2" @onclick="() => showAdvanced = !showAdvanced">
-                <i class="bi @(showAdvanced ? "bi-chevron-up" : "bi-gear") me-1"></i>
-                Advanced
-            </button>
-
-            @if (showAdvanced)
-            {
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <div class="row">
-                            <!-- Per-server headers -->
-                            <div class="col-md-6">
-                                <h6 class="text-uppercase text-muted small fw-bold mb-2">
-                                    <i class="bi bi-hdd-network me-1"></i>
-                                    @(AppState.CurrentServerConfig?.Label ?? "No server selected")
-                                </h6>
-                                <div class="small text-muted mb-3">@AppState.CurrentServerUrl</div>
-
-                                @if (!AppState.ConformanceTestingMode)
-                                {
-                                    <div class="alert alert-secondary small py-2 mb-3">
-                                        <i class="bi bi-info-circle me-1"></i>
-                                        Conformance Testing Mode is off. Headers below will not be injected.
-                                        <a href="/settings" class="alert-link">Enable in Settings</a>
-                                    </div>
-                                }
-
-                                @if (dashboardHeaders.Any())
-                                {
-                                    <div class="table-responsive mb-2">
-                                        <table class="table table-sm table-bordered mb-0">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th>Header</th>
-                                                    <th>Value</th>
-                                                    <th style="width: 40px;"></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var header in dashboardHeaders)
-                                                {
-                                                    <tr>
-                                                        <td><input type="text" class="form-control form-control-sm border-0" @bind="header.Key" placeholder="Key" /></td>
-                                                        <td><input type="text" class="form-control form-control-sm border-0" @bind="header.Value" placeholder="Value" /></td>
-                                                        <td class="text-center">
-                                                            <button class="btn btn-link link-danger p-0" @onclick="() => dashboardHeaders.Remove(header)">
-                                                                <i class="bi bi-x-lg"></i>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                }
-
-                                <div class="d-flex justify-content-between">
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => dashboardHeaders.Add(new HeaderItem())">
-                                        <i class="bi bi-plus-lg me-1"></i> Add Header
-                                    </button>
-                                    <button class="btn btn-sm btn-primary" @onclick="SaveDashboardHeaders">
-                                        Apply
-                                    </button>
-                                </div>
-                                @if (dashboardHeadersSaved)
-                                {
-                                    <span class="text-success small mt-1 d-block">Applied!</span>
-                                }
-                            </div>
-
-                            <!-- Debug request/response -->
-                            <div class="col-md-6">
-                                <h6 class="text-uppercase text-muted small fw-bold mb-2">
-                                    <i class="bi bi-bug me-1"></i>
-                                    Last Request / Response
-                                </h6>
-
-                                @if (AppState.LastRequestLog != null)
-                                {
-                                    var log = AppState.LastRequestLog;
-                                    <div class="small mb-2 text-muted">@log.Timestamp.ToString("HH:mm:ss")</div>
-
-                                    <div class="mb-2">
-                                        <span class="badge @(log.StatusCode < 300 ? "bg-success" : "bg-danger") me-1">@log.StatusCode</span>
-                                        <span class="badge bg-secondary me-1">@log.Method</span>
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label small fw-bold mb-1">URL</label>
-                                        <pre class="bg-light border rounded p-2 small mb-0" style="white-space: pre-wrap; word-break: break-all; max-height: 60px; overflow: auto;">@log.Url</pre>
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label small fw-bold mb-1">Request Headers</label>
-                                        <pre class="bg-light border rounded p-2 small mb-0" style="max-height: 120px; overflow: auto;">@FormatHeaders(log.RequestHeaders)</pre>
-                                    </div>
-
-                                    @if (AppState.ShowDebugInfo)
-                                    {
-                                        <div>
-                                            <label class="form-label small fw-bold mb-1">Response Body</label>
-                                            <pre class="bg-light border rounded p-2 small mb-0" style="max-height: 300px; overflow: auto;">@log.ResponseBody</pre>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="small text-muted">
-                                            <i class="bi bi-info-circle me-1"></i>
-                                            Enable Debug Mode in <a href="/settings">Settings</a> to see the response body.
-                                        </div>
-                                    }
-                                }
-                                else
-                                {
-                                    <p class="text-muted small mb-0">No requests made yet. Search for a patient to see request details here.</p>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
         </div>
     </div>
 
@@ -253,6 +46,10 @@
         <div class="col">
             <h2 class="fw-light">Components</h2>
             <p class="text-muted">Select a module for the current context.</p>
+            @if (!string.IsNullOrEmpty(feedbackMessage))
+            {
+                <div class="alert @feedbackClass py-2">@feedbackMessage</div>
+            }
         </div>
     </div>
 
@@ -277,68 +74,17 @@
 @code {
     private Patient? CurrentPatient => AppState.CurrentPatient;
 
-    // Search State
-    private string searchId = "";
-
-    // Identifier Search State
-    private string selectedSystem = "http://fhir.nl/fhir/NamingSystem/bsn";
-    private string customSystem = "";
-    private string searchIdentifier = "";
-
-    private string searchName = "";
-
-    private bool isSearching = false;
     private string feedbackMessage = "";
     private string feedbackClass = "";
 
-    private List<Patient>? foundPatients;
-
-    // Advanced panel
-    private bool showAdvanced = false;
-    private List<HeaderItem> dashboardHeaders = new();
-    private bool dashboardHeadersSaved = false;
-    private string? lastServerUrl;
-
     protected override void OnInitialized()
     {
-        AppState.OnChange += OnStateChanged;
-        LoadDashboardHeaders();
+        AppState.OnChange += StateHasChanged;
     }
 
     public void Dispose()
     {
-        AppState.OnChange -= OnStateChanged;
-    }
-
-    private void OnStateChanged()
-    {
-        // Reload headers if server changed
-        if (lastServerUrl != AppState.CurrentServerUrl)
-        {
-            LoadDashboardHeaders();
-        }
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void LoadDashboardHeaders()
-    {
-        lastServerUrl = AppState.CurrentServerUrl;
-        dashboardHeaders = AppState.CurrentServerHeaders
-            .Select(h => new HeaderItem { Key = h.Key, Value = h.Value })
-            .ToList();
-    }
-
-    private void SaveDashboardHeaders()
-    {
-        var validHeaders = dashboardHeaders.Where(h => !string.IsNullOrWhiteSpace(h.Key)).ToList();
-        AppState.UpdateServerHeaders(AppState.CurrentServerUrl, validHeaders);
-        dashboardHeadersSaved = true;
-        Task.Delay(2000).ContinueWith(_ => InvokeAsync(() => { dashboardHeadersSaved = false; StateHasChanged(); }));
-    }
-
-    private string FormatHeaders(Dictionary<string, string> headers)
-    {
-        return string.Join("\n", headers.Select(h => $"{h.Key}: {h.Value}"));
+        AppState.OnChange -= StateHasChanged;
     }
 
     private void NavigateToModule(IIGModule module)
@@ -350,130 +96,5 @@
             return;
         }
         NavManager.NavigateTo(module.EntryPath);
-    }
-
-    private async Task KeyUp(KeyboardEventArgs e, string mode)
-    {
-        if (e.Key == "Enter")
-        {
-            switch(mode)
-            {
-                case "ID": await SearchById(); break;
-                case "IDENTIFIER": await SearchByIdentifier(); break;
-                case "NAME": await SearchByName(); break;
-            }
-        }
-    }
-
-    private void ResetSearch()
-    {
-        feedbackMessage = "";
-        foundPatients = null;
-    }
-
-    // 1. Search by ID
-    private async Task SearchById()
-    {
-        if (string.IsNullOrWhiteSpace(searchId)) return;
-        ResetSearch();
-        isSearching = true;
-
-        try
-        {
-            var p = await FhirService.GetPatientByIdAsync(searchId);
-            if (p != null)
-            {
-                SelectPatient(p);
-            }
-            else
-            {
-                feedbackMessage = $"Patient with ID '{searchId}' not found.";
-                feedbackClass = "alert-danger";
-            }
-        }
-        catch (Exception ex)
-        {
-            feedbackMessage = $"Error: {ex.Message}";
-            feedbackClass = "alert-danger";
-        }
-        finally { isSearching = false; }
-    }
-
-    // 2. Search by Identifier
-    private async Task SearchByIdentifier()
-    {
-        if (string.IsNullOrWhiteSpace(searchIdentifier)) return;
-        ResetSearch();
-        isSearching = true;
-
-        string systemToUse = selectedSystem == "other" ? customSystem : selectedSystem;
-
-        try
-        {
-            var p = await FhirService.SearchPatientByIdentifierAsync(systemToUse, searchIdentifier);
-            if (p != null)
-            {
-                SelectPatient(p);
-            }
-            else
-            {
-                feedbackMessage = "No patient found with that identifier.";
-                feedbackClass = "alert-warning";
-            }
-        }
-        catch (Exception ex)
-        {
-            feedbackMessage = $"Error: {ex.Message}";
-            feedbackClass = "alert-danger";
-        }
-        finally { isSearching = false; }
-    }
-
-    // 3. Search by Name
-    private async Task SearchByName()
-    {
-         if (string.IsNullOrWhiteSpace(searchName)) return;
-        ResetSearch();
-        isSearching = true;
-
-        try
-        {
-            var bundle = await FhirService.SearchPatientsAsync(searchName);
-            var results = bundle.Entry?.Select(e => e.Resource as Patient).Where(p => p != null).Cast<Patient>().ToList() ?? new List<Patient>();
-
-            if (results.Any())
-            {
-                // USER REQUEST: Always show tiles, do not auto select even if 1 result.
-                foundPatients = results;
-                feedbackMessage = "Select a patient from the results below.";
-                feedbackClass = "alert-info";
-            }
-            else
-            {
-                feedbackMessage = $"No patients found matching '{searchName}'.";
-                feedbackClass = "alert-warning";
-            }
-        }
-        catch (Exception ex)
-        {
-            feedbackMessage = $"Error: {ex.Message}";
-            feedbackClass = "alert-danger";
-        }
-        finally { isSearching = false; }
-    }
-
-    private void SelectPatient(Patient p)
-    {
-        AppState.SetPatient(p);
-        feedbackMessage = $"Context set to: {GetPatientName(p)}";
-        feedbackClass = "alert-success";
-        foundPatients = null; // Clear list after selection
-    }
-
-    private string GetPatientName(Patient p)
-    {
-        if (p.Name == null || !p.Name.Any()) return "Unknown";
-        var name = p.Name.First();
-        return $"{name.Given.FirstOrDefault()} {name.Family}";
     }
 }

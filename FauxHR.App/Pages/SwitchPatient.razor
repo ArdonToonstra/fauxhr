@@ -1,0 +1,250 @@
+@page "/patient/switch"
+@using FauxHR.Core.Interfaces
+@using FauxHR.Core.Services
+@using Hl7.Fhir.Model
+@using Task = System.Threading.Tasks.Task
+@inject IFhirService FhirService
+@inject AppState AppState
+@inject NavigationManager NavManager
+
+<PageTitle>FauxHR - Switch Patient</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-light mb-1">Switch Patient</h2>
+            <p class="text-muted">Search the FHIR server and select a patient to set as the active context.</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="row g-4">
+
+                        <!-- Search by ID -->
+                        <div class="col-md-4 border-end-md">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-person-badge me-2"></i>Search by ID</h6>
+                            <div class="input-group">
+                                <input @bind="searchId" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "ID"))" type="text" class="form-control" placeholder="e.g. pat-123" />
+                                <button class="btn btn-primary" @onclick="SearchById" disabled="@isSearching">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Directly load a patient resource by logical ID.</div>
+                        </div>
+
+                        <!-- Search by Identifier -->
+                        <div class="col-md-4 border-end-md">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-card-text me-2"></i>Search by Identifier</h6>
+                            <div class="input-group mb-2">
+                                <select class="form-select form-select-sm" @bind="selectedSystem">
+                                    <option value="http://fhir.nl/fhir/NamingSystem/bsn">BSN</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            @if (selectedSystem == "other")
+                            {
+                                <div class="input-group mb-2">
+                                    <input @bind="customSystem" class="form-control form-control-sm" placeholder="Enter System URL" />
+                                </div>
+                            }
+                            <div class="input-group">
+                                <input @bind="searchIdentifier" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "IDENTIFIER"))" type="text" class="form-control" placeholder="Value (e.g. 999911120)" />
+                                <button class="btn btn-primary" @onclick="SearchByIdentifier" disabled="@isSearching">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Find by business identifier (e.g. BSN).</div>
+                        </div>
+
+                        <!-- Search by Name -->
+                        <div class="col-md-4">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3"><i class="bi bi-person me-2"></i>Search by Name</h6>
+                            <div class="input-group">
+                                <input @bind="searchName" @bind:event="oninput" @onkeyup="@(e => KeyUp(e, "NAME"))" type="text" class="form-control" placeholder="e.g. Janus" />
+                                <button class="btn btn-primary" @onclick="SearchByName" disabled="@isSearching">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Search by family or given name (contains).</div>
+                        </div>
+                    </div>
+
+                    <!-- Search Feedback -->
+                    @if (isSearching)
+                    {
+                        <div class="alert alert-info mt-3 mb-0 py-2">
+                            <div class="spinner-border spinner-border-sm me-2"></div> Searching...
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(feedbackMessage))
+                    {
+                        <div class="alert @feedbackClass mt-3 mb-0 py-2 d-flex justify-content-between align-items-center">
+                            <span>@feedbackMessage</span>
+                            @if (foundPatients != null && foundPatients.Any())
+                            {
+                                <span class="small text-muted">Found @foundPatients.Count result(s)</span>
+                            }
+                        </div>
+                    }
+
+                    <!-- Search Results (Tiles) -->
+                    @if (foundPatients != null && foundPatients.Any())
+                    {
+                        <div class="row g-3 mt-3">
+                            @foreach (var p in foundPatients)
+                            {
+                                <div class="col-sm-6 col-lg-4">
+                                    <div class="card h-100 shadow-sm patient-card cursor-pointer" @onclick="() => SelectPatient(p)">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center gap-3 mb-3">
+                                                <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 48px;">
+                                                    <i class="bi bi-person-fill fs-4"></i>
+                                                </div>
+                                                <div>
+                                                    <h6 class="card-title fw-bold mb-0">@GetPatientName(p)</h6>
+                                                    <span class="badge bg-light text-secondary border">@p.Id</span>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex justify-content-between text-muted small">
+                                                <span><i class="bi bi-calendar-event me-1"></i> @(p.BirthDate ?? "Unknown Birthdate")</span>
+                                                <span class="text-capitalize"><i class="bi bi-gender-ambiguous me-1"></i> @(p.Gender?.ToString() ?? "Unknown Gender")</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private string searchId = "";
+    private string selectedSystem = "http://fhir.nl/fhir/NamingSystem/bsn";
+    private string customSystem = "";
+    private string searchIdentifier = "";
+    private string searchName = "";
+
+    private bool isSearching = false;
+    private string feedbackMessage = "";
+    private string feedbackClass = "";
+    private List<Patient>? foundPatients;
+
+    private async Task KeyUp(KeyboardEventArgs e, string mode)
+    {
+        if (e.Key == "Enter")
+        {
+            switch (mode)
+            {
+                case "ID": await SearchById(); break;
+                case "IDENTIFIER": await SearchByIdentifier(); break;
+                case "NAME": await SearchByName(); break;
+            }
+        }
+    }
+
+    private void ResetSearch()
+    {
+        feedbackMessage = "";
+        foundPatients = null;
+    }
+
+    private async Task SearchById()
+    {
+        if (string.IsNullOrWhiteSpace(searchId)) return;
+        ResetSearch();
+        isSearching = true;
+        try
+        {
+            var p = await FhirService.GetPatientByIdAsync(searchId);
+            if (p != null)
+                SelectPatient(p);
+            else
+            {
+                feedbackMessage = $"Patient with ID '{searchId}' not found.";
+                feedbackClass = "alert-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error: {ex.Message}";
+            feedbackClass = "alert-danger";
+        }
+        finally { isSearching = false; }
+    }
+
+    private async Task SearchByIdentifier()
+    {
+        if (string.IsNullOrWhiteSpace(searchIdentifier)) return;
+        ResetSearch();
+        isSearching = true;
+        string systemToUse = selectedSystem == "other" ? customSystem : selectedSystem;
+        try
+        {
+            var p = await FhirService.SearchPatientByIdentifierAsync(systemToUse, searchIdentifier);
+            if (p != null)
+                SelectPatient(p);
+            else
+            {
+                feedbackMessage = "No patient found with that identifier.";
+                feedbackClass = "alert-warning";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error: {ex.Message}";
+            feedbackClass = "alert-danger";
+        }
+        finally { isSearching = false; }
+    }
+
+    private async Task SearchByName()
+    {
+        if (string.IsNullOrWhiteSpace(searchName)) return;
+        ResetSearch();
+        isSearching = true;
+        try
+        {
+            var bundle = await FhirService.SearchPatientsAsync(searchName);
+            var results = bundle.Entry?.Select(e => e.Resource as Patient).Where(p => p != null).Cast<Patient>().ToList() ?? new List<Patient>();
+            if (results.Any())
+            {
+                foundPatients = results;
+                feedbackMessage = "Select a patient from the results below.";
+                feedbackClass = "alert-info";
+            }
+            else
+            {
+                feedbackMessage = $"No patients found matching '{searchName}'.";
+                feedbackClass = "alert-warning";
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error: {ex.Message}";
+            feedbackClass = "alert-danger";
+        }
+        finally { isSearching = false; }
+    }
+
+    private void SelectPatient(Patient p)
+    {
+        AppState.SetPatient(p);
+        NavManager.NavigateTo("patient");
+    }
+
+    private string GetPatientName(Patient p)
+    {
+        if (p.Name == null || !p.Name.Any()) return "Unknown";
+        var name = p.Name.First();
+        return $"{name.Given.FirstOrDefault()} {name.Family}".Trim();
+    }
+}

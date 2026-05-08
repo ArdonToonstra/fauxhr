@@ -3,6 +3,7 @@
 @using FauxHR.Core.Interfaces
 @inject AppState AppState
 @inject IFhirService FhirService
+@implements IDisposable
 
 <PageTitle>FauxHR - Settings</PageTitle>
 
@@ -225,6 +226,55 @@
             </div>
         </div>
 
+        <!-- Last Request / Response -->
+        <div class="col-md-6 mt-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Last Request / Response</h5>
+
+                    @if (AppState.LastRequestLog != null)
+                    {
+                        var log = AppState.LastRequestLog;
+                        <div class="small mb-2 text-muted">@log.Timestamp.ToString("HH:mm:ss")</div>
+
+                        <div class="mb-2">
+                            <span class="badge @(log.StatusCode < 300 ? "bg-success" : "bg-danger") me-1">@log.StatusCode</span>
+                            <span class="badge bg-secondary me-1">@log.Method</span>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1">URL</label>
+                            <pre class="bg-light border rounded p-2 small mb-0" style="white-space: pre-wrap; word-break: break-all; max-height: 60px; overflow: auto;">@log.Url</pre>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1">Request Headers</label>
+                            <pre class="bg-light border rounded p-2 small mb-0" style="max-height: 120px; overflow: auto;">@FormatHeaders(log.RequestHeaders)</pre>
+                        </div>
+
+                        @if (AppState.ShowDebugInfo)
+                        {
+                            <div>
+                                <label class="form-label small fw-bold mb-1">Response Body</label>
+                                <pre class="bg-light border rounded p-2 small mb-0" style="max-height: 300px; overflow: auto;">@log.ResponseBody</pre>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="small text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Enable Debug Mode above to see the response body.
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-0">No requests made yet.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
         <div class="col-md-6 mt-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body">
@@ -277,7 +327,16 @@
         enableReferences = AppState.EnableReferenceResolution;
         resolutionDepth = AppState.ReferenceResolutionDepth;
         conformanceMode = AppState.ConformanceTestingMode;
+        AppState.OnChange += StateHasChanged;
     }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+
+    private string FormatHeaders(Dictionary<string, string> headers)
+        => string.Join("\n", headers.Select(h => $"{h.Key}: {h.Value}"));
 
     private void ToggleServerHeaders(string serverUrl)
     {
