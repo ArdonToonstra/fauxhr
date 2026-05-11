@@ -35,6 +35,7 @@ builder.Services.AddScoped<FauxHR.Modules.CrmiAuthoring.Services.ValueSetBinding
 // CDS Hooks Module (CTM Pattern A)
 builder.Services.AddScoped<FauxHR.Core.Interfaces.IIGModule, FauxHR.Modules.CdsHooks.CdsHooksModule>();
 builder.Services.AddScoped<FauxHR.Modules.CdsHooks.Services.CdsHooksPrefetchService>();
+builder.Services.AddHttpClient<FauxHR.Modules.CdsHooks.Services.CdsHooksService>();
 
 var host = builder.Build();
 

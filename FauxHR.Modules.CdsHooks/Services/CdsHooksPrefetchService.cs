@@ -49,17 +49,20 @@ public class CdsHooksPrefetchService
         var observationsPregnancyTask = _fhirService.SearchResourceAsync("Observation",
             $"patient={patientId}&code=http://loinc.org|82810-3");
         var observationsComorbiditiesTask = _fhirService.SearchResourceAsync("Observation",
-            $"patient={patientId}");
+            $"patient={patientId}&code=http://snomed.info/sct|398192003");
         var observationsStageTask = _fhirService.SearchResourceAsync("Observation",
-            $"patient={patientId}");
+            $"patient={patientId}&code=http://loinc.org|21908-9,http://loinc.org|21902-2,http://loinc.org|21914-7," +
+            $"http://loinc.org|21905-5,http://loinc.org|21899-0,http://loinc.org|21911-3," +
+            $"http://loinc.org|21906-3,http://loinc.org|21900-6,http://loinc.org|21912-1," +
+            $"http://loinc.org|21907-1,http://loinc.org|21901-4,http://loinc.org|21913-9");
         var observationsHistologyTask = _fhirService.SearchResourceAsync("Observation",
-            $"patient={patientId}");
+            $"patient={patientId}&code=http://loinc.org|31206-6");
         var medicationAdminTask = _fhirService.SearchResourceAsync("MedicationAdministration",
             $"patient={patientId}&_include=MedicationAdministration:medication");
         var proceduresTask = _fhirService.SearchResourceAsync("Procedure",
             $"patient={patientId}");
         var proceduresRadiotherapyTask = _fhirService.SearchResourceAsync("Procedure",
-            $"patient={patientId}");
+            $"patient={patientId}&code=http://snomed.info/sct|1217123003");
 
         await System.Threading.Tasks.Task.WhenAll(
             patientTask, conditionsProblemListTask, conditionsSitesTask,

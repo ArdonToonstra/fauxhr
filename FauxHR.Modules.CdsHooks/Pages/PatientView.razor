@@ -7,6 +7,7 @@
 @using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject CdsHooksPrefetchService PrefetchService
+@inject CdsHooksService CdsHooksService
 @implements IDisposable
 
 <PageTitle>CTM - Patient View Hook</PageTitle>
@@ -328,8 +329,8 @@
 
             requestJson = PrefetchService.SerializeRequest(currentRequest);
 
-            // Simulate calling the CDS Service and getting back cards
-            cdsResponse = BuildMockCdsResponse();
+            cdsResponse = await CdsHooksService.InvokeAsync("ctm-patient-view", currentRequest)
+                ?? BuildMockCdsResponse();
 
             hookTriggered = true;
         }
