@@ -43,8 +43,14 @@ public class CdsHooksService
             prefetch = prefetchElements
         });
 
-        using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        var response = await _http.PostAsync(CdsBaseUrl + serviceId, content);
+        using var message = new HttpRequestMessage(HttpMethod.Post, CdsBaseUrl + serviceId)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        message.Headers.Accept.Clear();
+        message.Headers.Accept.ParseAdd("application/json");
+
+        var response = await _http.SendAsync(message);
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync();
