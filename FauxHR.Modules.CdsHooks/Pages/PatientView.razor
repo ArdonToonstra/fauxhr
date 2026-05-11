@@ -4,6 +4,7 @@
 @using FauxHR.Modules.CdsHooks.Services
 @using Hl7.Fhir.Model
 @using Hl7.Fhir.Serialization
+@using System.Text.Json
 @using Task = System.Threading.Tasks.Task
 @inject AppState AppState
 @inject CdsHooksPrefetchService PrefetchService
@@ -21,9 +22,22 @@
             </h2>
             <p class="lead text-muted mb-0">CDS Hooks <code>patient-view</code> &mdash; USCDI+ CTM Pattern A</p>
         </div>
+        <div class="btn-group" role="group" aria-label="View toggle">
+            <button type="button"
+                    class="btn @(!showDebug ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick="() => showDebug = false">
+                <i class="bi bi-person-check me-1"></i>Clinician View
+            </button>
+            <button type="button"
+                    class="btn @(showDebug ? "btn-warning" : "btn-outline-secondary")"
+                    @onclick="() => showDebug = true"
+                    disabled="@(!hookTriggered && !isLoading)">
+                <i class="bi bi-bug me-1"></i>Debug View
+            </button>
+        </div>
     </div>
 
-    <!-- Patient Record Banner -->
+    <!-- Patient Record Banner (always visible) -->
     <div class="card mb-4 border-primary">
         <div class="card-body">
             <div class="row align-items-center">
@@ -55,75 +69,22 @@
         </div>
     </div>
 
-    <!-- Patient Clinical Summary (mock) -->
-    <div class="row mb-4">
-        <div class="col-md-6 col-lg-3 mb-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-heart-pulse me-1"></i>Conditions</h6>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-1"><span class="badge bg-danger-subtle text-danger me-1">Active</span>Non-small cell lung cancer (NSCLC)</li>
-                        <li class="mb-1"><span class="badge bg-warning-subtle text-warning me-1">Active</span>Type 2 Diabetes Mellitus</li>
-                        <li><span class="badge bg-secondary-subtle text-secondary me-1">Resolved</span>Hypertension</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3 mb-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-capsule me-1"></i>Medications</h6>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-1">Pembrolizumab 200mg IV q3w</li>
-                        <li class="mb-1">Carboplatin AUC 5 IV</li>
-                        <li>Metformin 1000mg PO BID</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3 mb-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-clipboard2-data me-1"></i>Staging</h6>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-1"><strong>Stage:</strong> IIIB</li>
-                        <li class="mb-1"><strong>TNM:</strong> T3 N2 M0</li>
-                        <li class="mb-1"><strong>Histology:</strong> Adenocarcinoma</li>
-                        <li><strong>ECOG:</strong> 1</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6 col-lg-3 mb-3">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-droplet me-1"></i>Labs (Recent)</h6>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-1">WBC: 6.2 x10^9/L</li>
-                        <li class="mb-1">Hgb: 12.1 g/dL</li>
-                        <li class="mb-1">Platelets: 210 x10^9/L</li>
-                        <li>Creatinine: 0.9 mg/dL</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Hook Status -->
+    <!-- Loading state (always visible) -->
     @if (isLoading)
     {
         <div class="card mb-4">
             <div class="card-body text-center py-5">
                 <div class="spinner-border text-primary mb-3" role="status"></div>
-                <p class="text-muted mb-0">Gathering prefetch data and invoking <code>patient-view</code> hook...</p>
+                <p class="text-muted mb-0">Gathering prefetch data and invoking <code>patient-view</code> hook&hellip;</p>
                 <p class="text-muted small">Querying FHIR server for CTM-relevant data elements</p>
             </div>
         </div>
     }
 
+    <!-- Error banner (always visible) -->
     @if (errorMessage != null)
     {
-        <div class="alert alert-danger d-flex align-items-start" role="alert">
+        <div class="alert alert-danger d-flex align-items-start mb-4" role="alert">
             <i class="bi bi-x-circle-fill me-2 mt-1"></i>
             <div>
                 <strong>Hook invocation failed</strong>
@@ -132,128 +93,272 @@
         </div>
     }
 
-    <!-- Prefetch Results & CDS Cards -->
     @if (hookTriggered && currentRequest != null)
     {
-        <div class="row">
-            <!-- Prefetch Summary -->
-            <div class="col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-light">
-                        <h5 class="mb-0"><i class="bi bi-collection me-2"></i>Prefetch Summary</h5>
+        @if (!showDebug)
+        {
+            <!-- ═══════════════════════ CLINICIAN VIEW ═══════════════════════ -->
+
+            <!-- Clinical Summary (mock) -->
+            <div class="row mb-4">
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-heart-pulse me-1"></i>Conditions</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-1"><span class="badge bg-danger-subtle text-danger me-1">Active</span>Non-small cell lung cancer (NSCLC)</li>
+                                <li class="mb-1"><span class="badge bg-warning-subtle text-warning me-1">Active</span>Type 2 Diabetes Mellitus</li>
+                                <li><span class="badge bg-secondary-subtle text-secondary me-1">Resolved</span>Hypertension</li>
+                            </ul>
+                        </div>
                     </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            @foreach (var kvp in currentRequest.Prefetch)
-                            {
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span class="text-truncate me-2">@kvp.Key</span>
-                                    @if (kvp.Value is Bundle bundle)
-                                    {
-                                        <span class="badge bg-primary rounded-pill">@(bundle.Entry?.Count ?? 0) entries</span>
-                                    }
-                                    else if (kvp.Value is Patient)
-                                    {
-                                        <span class="badge bg-success rounded-pill">Found</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary rounded-pill">Empty</span>
-                                    }
-                                </div>
-                            }
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-capsule me-1"></i>Medications</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-1">Pembrolizumab 200mg IV q3w</li>
+                                <li class="mb-1">Carboplatin AUC 5 IV</li>
+                                <li>Metformin 1000mg PO BID</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-clipboard2-data me-1"></i>Staging</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-1"><strong>Stage:</strong> IIIB</li>
+                                <li class="mb-1"><strong>TNM:</strong> T3 N2 M0</li>
+                                <li class="mb-1"><strong>Histology:</strong> Adenocarcinoma</li>
+                                <li><strong>ECOG:</strong> 1</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted text-uppercase small mb-2"><i class="bi bi-droplet me-1"></i>Labs (Recent)</h6>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-1">WBC: 6.2 x10^9/L</li>
+                                <li class="mb-1">Hgb: 12.1 g/dL</li>
+                                <li class="mb-1">Platelets: 210 x10^9/L</li>
+                                <li>Creatinine: 0.9 mg/dL</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- CDS Response Cards -->
-            <div class="col-lg-8 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>CDS Response Cards</h5>
-                        <span class="badge bg-success">@(cdsResponse?.Cards.Count ?? 0) card(s) returned</span>
-                    </div>
-                    <div class="card-body">
-                        @if (cdsResponse != null && cdsResponse.Cards.Any())
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>Trial Match Recommendations</h5>
+                    <span class="badge bg-success">@(cdsResponse?.Cards.Count ?? 0) card(s) returned</span>
+                </div>
+                <div class="card-body">
+                    @if (cdsResponse != null && cdsResponse.Cards.Any())
+                    {
+                        @foreach (var card in cdsResponse.Cards)
                         {
-                            @foreach (var card in cdsResponse.Cards)
-                            {
-                                <div class="alert @GetCardAlertClass(card.Indicator) d-flex align-items-start mb-3">
-                                    <i class="@GetCardIcon(card.Indicator) me-2 mt-1 fs-5"></i>
-                                    <div class="flex-grow-1">
-                                        <strong>@card.Summary</strong>
-                                        @if (!string.IsNullOrEmpty(card.Detail))
+                            <div class="alert @GetCardAlertClass(card.Indicator) d-flex align-items-start mb-3">
+                                <i class="@GetCardIcon(card.Indicator) me-2 mt-1 fs-5"></i>
+                                <div class="flex-grow-1">
+                                    <strong>@card.Summary</strong>
+                                    @if (!string.IsNullOrEmpty(card.Detail))
+                                    {
+                                        <p class="mb-1 mt-1 small">@card.Detail</p>
+                                    }
+                                    @if (card.Source != null)
+                                    {
+                                        <div class="mt-1">
+                                            <small class="text-muted"><i class="bi bi-building me-1"></i>Source: @card.Source.Label</small>
+                                        </div>
+                                    }
+                                    @if (card.Links != null && card.Links.Any())
+                                    {
+                                        <div class="mt-2">
+                                            @foreach (var link in card.Links)
+                                            {
+                                                <a href="@link.Url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
+                                                    <i class="bi bi-box-arrow-up-right me-1"></i>@link.Label
+                                                </a>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-3 mb-0"><i class="bi bi-inbox me-2"></i>No cards returned by the CTM service.</p>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- ═══════════════════════ DEBUG VIEW ═══════════════════════ -->
+
+            <!-- Workflow Timeline -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning-subtle">
+                    <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>CDS Hooks Workflow</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span class="badge bg-success p-2"><i class="bi bi-1-circle me-1"></i>Patient record opened</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success p-2"><i class="bi bi-2-circle me-1"></i>patient-view hook fired</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success p-2"><i class="bi bi-3-circle me-1"></i>Prefetch queries executed</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success p-2"><i class="bi bi-4-circle me-1"></i>POST /cds-services/ctm-patient-view</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge @(cdsResponse != null && cdsResponse.Cards.Any() ? "bg-success" : "bg-warning") p-2">
+                            <i class="bi bi-5-circle me-1"></i>@(cdsResponse?.Cards.Count ?? 0) card(s) returned
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <!-- Prefetch Summary -->
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning-subtle">
+                            <h5 class="mb-0"><i class="bi bi-collection me-2"></i>Prefetch Summary</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                @foreach (var kvp in currentRequest.Prefetch)
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <code class="small text-truncate me-2">@kvp.Key</code>
+                                        @if (kvp.Value is Bundle bundle)
                                         {
-                                            <p class="mb-1 mt-1 small">@card.Detail</p>
+                                            <span class="badge @(bundle.Entry?.Count > 0 ? "bg-primary" : "bg-secondary") rounded-pill">
+                                                @(bundle.Entry?.Count ?? 0) entries
+                                            </span>
                                         }
-                                        @if (card.Source != null)
+                                        else if (kvp.Value is Patient)
                                         {
-                                            <div class="mt-1">
-                                                <small class="text-muted"><i class="bi bi-building me-1"></i>Source: @card.Source.Label</small>
-                                            </div>
+                                            <span class="badge bg-success rounded-pill">Found</span>
                                         }
-                                        @if (card.Links != null && card.Links.Any())
+                                        else
                                         {
-                                            <div class="mt-2">
-                                                @foreach (var link in card.Links)
-                                                {
-                                                    <a href="@link.Url" target="_blank" class="btn btn-sm btn-outline-primary me-2">
-                                                        <i class="bi bi-box-arrow-up-right me-1"></i>@link.Label
-                                                    </a>
-                                                }
-                                            </div>
+                                            <span class="badge bg-secondary rounded-pill">Empty</span>
                                         }
                                     </div>
-                                </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cards returned (compact) -->
+                <div class="col-lg-8">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>Cards Received</h5>
+                            <span class="badge bg-success">@(cdsResponse?.Cards.Count ?? 0) card(s)</span>
+                        </div>
+                        <div class="card-body">
+                            @if (cdsResponse != null && cdsResponse.Cards.Any())
+                            {
+                                @foreach (var card in cdsResponse.Cards)
+                                {
+                                    <div class="alert @GetCardAlertClass(card.Indicator) d-flex align-items-start mb-3 py-2">
+                                        <i class="@GetCardIcon(card.Indicator) me-2 mt-1"></i>
+                                        <div class="flex-grow-1">
+                                            <strong class="small">@card.Summary</strong>
+                                            @if (card.Source != null)
+                                            {
+                                                <div><small class="text-muted">Source: @card.Source.Label</small></div>
+                                            }
+                                        </div>
+                                        <span class="badge bg-secondary ms-2 align-self-start">@card.Indicator</span>
+                                    </div>
+                                }
                             }
+                            else
+                            {
+                                <p class="text-muted text-center py-3 mb-0"><i class="bi bi-inbox me-2"></i>No cards returned.</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HTTP Request / Response JSON -->
+            <div class="row">
+                <!-- Request sent -->
+                <div class="col-xl-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-upload me-2"></i>Request Sent
+                                <small class="text-muted fw-normal ms-2">POST /cds-services/ctm-patient-view</small>
+                            </h5>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => showRequestJson = !showRequestJson">
+                                <i class="bi @(showRequestJson ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
+                                @(showRequestJson ? "Collapse" : "Expand")
+                            </button>
+                        </div>
+                        @if (showRequestJson)
+                        {
+                            <div class="card-body p-0">
+                                <pre class="bg-dark text-light p-3 rounded-bottom mb-0"
+                                     style="max-height: 500px; overflow-y: auto; font-size: 0.75rem;">@requestJson</pre>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card-body py-2 text-muted small">
+                                <i class="bi bi-eye-slash me-1"></i>Expand to view full request payload
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Response received -->
+                <div class="col-xl-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-download me-2"></i>Response Received
+                                <small class="text-muted fw-normal ms-2">CDS Hooks cards JSON</small>
+                            </h5>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => showResponseJson = !showResponseJson">
+                                <i class="bi @(showResponseJson ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
+                                @(showResponseJson ? "Collapse" : "Expand")
+                            </button>
+                        </div>
+                        @if (showResponseJson)
+                        {
+                            <div class="card-body p-0">
+                                <pre class="bg-dark text-light p-3 rounded-bottom mb-0"
+                                     style="max-height: 500px; overflow-y: auto; font-size: 0.75rem;">@responseJson</pre>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card-body py-2 text-muted small">
+                                <i class="bi bi-eye-slash me-1"></i>Expand to view full response payload
+                            </div>
                         }
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Workflow Timeline -->
-        <div class="card mb-4">
-            <div class="card-header bg-light">
-                <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>CDS Hooks Workflow</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-flex align-items-center flex-wrap gap-2">
-                    <span class="badge bg-success p-2"><i class="bi bi-1-circle me-1"></i>Patient record opened</span>
-                    <i class="bi bi-arrow-right text-muted"></i>
-                    <span class="badge bg-success p-2"><i class="bi bi-2-circle me-1"></i>patient-view hook fired</span>
-                    <i class="bi bi-arrow-right text-muted"></i>
-                    <span class="badge bg-success p-2"><i class="bi bi-3-circle me-1"></i>Prefetch queries executed</span>
-                    <i class="bi bi-arrow-right text-muted"></i>
-                    <span class="badge bg-success p-2"><i class="bi bi-4-circle me-1"></i>CDS Service invoked</span>
-                    <i class="bi bi-arrow-right text-muted"></i>
-                    <span class="badge bg-success p-2"><i class="bi bi-5-circle me-1"></i>Cards rendered</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Raw Request JSON -->
-        <div class="card mb-4">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-code-slash me-2"></i>CDS Hooks Request (JSON)</h5>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleJson">
-                    <i class="bi @(showJson ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
-                    @(showJson ? "Hide" : "Show")
-                </button>
-            </div>
-            @if (showJson)
-            {
-                <div class="card-body">
-                    <pre class="bg-dark text-light p-3 rounded" style="max-height: 600px; overflow-y: auto; font-size: 0.8rem;">@requestJson</pre>
-                </div>
-            }
-        </div>
+        }
     }
 </div>
 
 @code {
-    // Mock patient data
     private string patientId = "pat-nsclc-001";
     private string patientName = "Maria Johnson";
     private string patientDob = "1962-03-15";
@@ -262,11 +367,20 @@
 
     private bool isLoading;
     private bool hookTriggered;
-    private bool showJson;
+    private bool showDebug;
+    private bool showRequestJson = true;
+    private bool showResponseJson = true;
     private string? errorMessage;
     private string? requestJson;
+    private string? responseJson;
     private CdsHooksRequest? currentRequest;
     private CdsHooksResponse? cdsResponse;
+
+    private static readonly JsonSerializerOptions JsonDisplayOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -276,7 +390,6 @@
 
     private async void OnAppStateChanged()
     {
-        // If a real patient is selected, use their data
         if (AppState.CurrentPatient != null)
         {
             patientId = AppState.CurrentPatient.Id ?? patientId;
@@ -303,14 +416,13 @@
         currentRequest = null;
         cdsResponse = null;
         requestJson = null;
+        responseJson = null;
         StateHasChanged();
 
-        // Simulate a small network delay for the hook invocation
         await Task.Delay(800);
 
         try
         {
-            // Try real FHIR queries if a patient is selected
             if (AppState.CurrentPatient != null)
             {
                 var userId = AppState.CurrentPractitioner != null
@@ -323,7 +435,6 @@
             }
             else
             {
-                // Use mock prefetch data
                 currentRequest = BuildMockRequest();
             }
 
@@ -332,14 +443,15 @@
             cdsResponse = await CdsHooksService.InvokeAsync("ctm-patient-view", currentRequest)
                 ?? BuildMockCdsResponse();
 
+            responseJson = JsonSerializer.Serialize(cdsResponse, JsonDisplayOptions);
             hookTriggered = true;
         }
         catch (Exception ex)
         {
-            // If real queries fail, fall back to mock
             currentRequest = BuildMockRequest();
             requestJson = PrefetchService.SerializeRequest(currentRequest);
             cdsResponse = BuildMockCdsResponse();
+            responseJson = JsonSerializer.Serialize(cdsResponse, JsonDisplayOptions);
             hookTriggered = true;
             errorMessage = $"FHIR query failed ({ex.Message}). Displaying mock data.";
         }
@@ -464,8 +576,6 @@
         "warning" => "bi bi-exclamation-triangle-fill",
         _ => "bi bi-info-circle-fill"
     };
-
-    private void ToggleJson() => showJson = !showJson;
 
     public void Dispose()
     {
