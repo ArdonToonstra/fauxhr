@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "FauxHR.App",
   "resources": {
-    "hash": "sha256-Snu0I+IC5C7wYTHHvIsHUodfwaIwKc/+n/7LMVmwx3A=",
+    "hash": "sha256-VO3mHFpmEavtjqQe+bAUhW/jeqSyiF1UR6j7CyYOSFI=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-A16ka545FHaB+QXjyJ4exXh7XpBAAIFnX8YkC4xAng8="
     },
@@ -64,7 +64,7 @@
       "System.Linq.wasm": "sha256-QxmC636Y1Knw69rF5f/85qtADgwicVsFwk2WTrsG1ps=",
       "System.Memory.wasm": "sha256-OQWYPfj8b2dlC1tBLWDt6UxUM6scOM5kkcKF+9hc1b4=",
       "System.Net.Http.Json.wasm": "sha256-cNEDNJGwcrlUkntQfoe0JTda8/xcC/0O0eugwibBS1Y=",
-      "System.Net.Http.wasm": "sha256-MSRf7+ij4x1IWQr2DdwfqDyx4I54YuQcHPla8q8qFfE=",
+      "System.Net.Http.wasm": "sha256-g2F7yQBZy3p1sxOFYiPUTUK4E1YHqSJ1gOLO6bDC3FQ=",
       "System.Net.Mail.wasm": "sha256-hi20l6MsltmxvnmaZuosFz8Y1DWBEt/DOwz7BBCEUUQ=",
       "System.Net.Primitives.wasm": "sha256-AEZLtv1R84UQd8c/GwxDGD8njqFJFAUxOTTmPwvYkfI=",
       "System.Net.Requests.wasm": "sha256-U0X0s7pM7bc+DwCtCxjcs6hGl2sOBoTeb3TxYrAveLg=",
@@ -94,11 +94,11 @@
       "System.Xml.XPath.XDocument.wasm": "sha256-o+10xZjBmO/yxLHVAE4wzZxCxb5SLZW35JRveSAgpp4=",
       "System.wasm": "sha256-25KTxVbx+rD8S9iyUye7jmbj1e4TZ5Ca+elup4oegJA=",
       "System.Private.CoreLib.wasm": "sha256-7H529k9yPCRHZpA/WedFABz2wfKInEt6S0M3PcLgjRM=",
-      "FauxHR.Core.wasm": "sha256-kx6esTAyMGhmZkqTzRwqHw17cJc6J8D1mIof4CdPQBM=",
-      "FauxHR.Modules.CdsHooks.wasm": "sha256-6W3FePvipesHWEMYoLFGbHpYUkKbsSN6iJ8RwTy+9F8=",
-      "FauxHR.Modules.CrmiAuthoring.wasm": "sha256-Hm+dvvU4jCfTe4obIHfjaBrWrSCYXCi+H7PXYV2fMnA=",
-      "FauxHR.Modules.ExitStrategy.wasm": "sha256-7omBZ+UFFlFt509JzBEdOeN22/cxxf6NI/im97oWrB0=",
-      "FauxHR.App.wasm": "sha256-GxC8Wi+T5FxdclmYw4rlJqxYwyzM/Nvmzm/e8DO2Nno="
+      "FauxHR.Core.wasm": "sha256-+xDHVc/+NjB/dqaUPDKlm9g/gizfRZfow9KVdCzGpNw=",
+      "FauxHR.Modules.CdsHooks.wasm": "sha256-JEHEkdYhY+i5MwB/sMLpS1k+Fk3E9M9Dm2MldJ4auu0=",
+      "FauxHR.Modules.CrmiAuthoring.wasm": "sha256-1mDu/TrMAIGzu+kY8lrV05azggj59lm4sciXH16skug=",
+      "FauxHR.Modules.ExitStrategy.wasm": "sha256-mbUlUdvoIRV2WPD9aceuhPeJgYMzT5m1qsQfjStOEHI=",
+      "FauxHR.App.wasm": "sha256-niKx9bzJeBwW1/+s7ZnScTpYsNC9wcDV9aQdM3/Fbmw="
     }
   },
   "cacheBootResources": true,
